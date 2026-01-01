@@ -1,0 +1,1725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firewall Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        .service-card { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+        .service-card:hover { transform: translateY(-2px); box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3); }
+        .service-card.active { border-color: #10b981; background: linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, transparent 100%); }
+        .pulse { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .bar-animate { animation: barGrow 0.5s ease-out forwards; }
+        @keyframes barGrow { from { width: 0; } }
+        .your-ip { animation: yourIpPulse 2s ease-in-out infinite; }
+        @keyframes yourIpPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); } }
+        .highlight-port { animation: highlightPulse 1s ease-in-out infinite; background: linear-gradient(90deg, rgba(251, 191, 36, 0.2) 0%, transparent 100%); }
+        @keyframes highlightPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+        .ip-selected { border-color: #fbbf24 !important; background: rgba(251, 191, 36, 0.1) !important; }
+        
+        /* Toast notifications */
+        .toast { animation: slideIn 0.3s ease-out; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .toast-exit { animation: slideOut 0.3s ease-in forwards; }
+        @keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+        
+        /* Skeleton loader */
+        .skeleton { animation: skeleton-loading 1s linear infinite alternate; }
+        @keyframes skeleton-loading { 0% { opacity: 0.5; } 100% { opacity: 1; } }
+        
+        /* Smooth transitions */
+        .transition-smooth { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen" x-data="firewall()" x-init="init()">
+    
+    <!-- Toast Notifications -->
+    <div class="fixed top-4 right-4 z-50 space-y-2" x-show="toasts.length > 0">
+        <template x-for="toast in toasts" :key="toast.id">
+            <div class="toast bg-slate-800 border rounded-lg shadow-xl px-4 py-3 flex items-center gap-3 min-w-[300px]"
+                 :class="{
+                     'border-emerald-500/50': toast.type === 'success',
+                     'border-red-500/50': toast.type === 'error',
+                     'border-blue-500/50': toast.type === 'info'
+                 }">
+                <div class="flex-shrink-0">
+                    <svg x-show="toast.type === 'success'" class="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <svg x-show="toast.type === 'error'" class="w-5 h-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <svg x-show="toast.type === 'info'" class="w-5 h-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+                <p class="text-sm text-white flex-1" x-text="toast.message"></p>
+                <button @click="removeToast(toast.id)" class="text-slate-400 hover:text-white transition-colors">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+        </template>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div x-show="confirmModal.show" 
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 flex items-center justify-center px-4"
+         @click.self="confirmModal.show = false">
+        <div class="bg-slate-900 border border-slate-700 rounded-xl p-6 max-w-md w-full shadow-2xl"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 scale-95"
+             x-transition:enter-end="opacity-100 scale-100"
+             x-transition:leave="transition ease-in duration-150"
+             x-transition:leave-start="opacity-100 scale-100"
+             x-transition:leave-end="opacity-0 scale-95">
+            <h3 class="text-lg font-semibold text-white mb-2" x-text="confirmModal.title"></h3>
+            <p class="text-sm text-slate-400 mb-6" x-text="confirmModal.message"></p>
+            <div class="flex gap-3 justify-end">
+                <button @click="confirmModal.show = false" 
+                        class="px-4 py-2 text-sm font-medium text-slate-300 hover:text-white transition-colors">
+                    Cancel
+                </button>
+                <button @click="confirmModal.onConfirm(); confirmModal.show = false" 
+                        class="px-4 py-2 text-sm font-medium bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors">
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-30"
+            :class="status !== 'active' ? 'opacity-100' : ''">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl flex items-center justify-center shadow-lg transition-smooth"
+                         :class="status === 'active' ? 'bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-500/20' : 'bg-gradient-to-br from-slate-600 to-slate-700 shadow-slate-500/20'">
+                        <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h1 class="text-lg font-semibold text-white">Firewall Dashboard</h1>
+                        <p class="text-xs text-slate-500">Manage incoming connections</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span x-show="loading" class="text-xs text-slate-500 pulse flex items-center gap-2">
+                        <svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Syncing...
+                    </span>
+                    
+                    <!-- UFW Toggle Switch -->
+                    <div x-show="status === 'active' || status === 'inactive'" 
+                         class="flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-smooth"
+                         :class="status === 'active' ? 'bg-slate-800/50 border-slate-700' : 'bg-red-500/10 border-red-500/30'">
+                        <span class="text-xs font-medium text-slate-400">UFW</span>
+                        <button @click="toggleUFW()" 
+                                :disabled="loading"
+                                class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                                :class="status === 'active' ? 'bg-emerald-600' : 'bg-slate-700'">
+                            <span class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform"
+                                  :class="status === 'active' ? 'translate-x-5' : 'translate-x-1'"></span>
+                        </button>
+                    </div>
+
+                    <div class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-smooth"
+                         :class="{
+                             'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20': status === 'active',
+                             'bg-red-500/10 text-red-400 border border-red-500/20': status === 'inactive',
+                             'bg-orange-500/10 text-orange-400 border border-orange-500/20': status === 'not_installed',
+                             'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20': status === 'permission_denied',
+                             'bg-slate-500/10 text-slate-400 border border-slate-500/20': status === 'error' || status === 'unknown'
+                         }">
+                        <span class="w-1.5 h-1.5 rounded-full" 
+                              :class="{
+                                  'bg-emerald-400 animate-pulse': status === 'active',
+                                  'bg-red-400': status === 'inactive',
+                                  'bg-orange-400': status === 'not_installed',
+                                  'bg-yellow-400': status === 'permission_denied',
+                                  'bg-slate-400': status === 'error' || status === 'unknown'
+                              }"></span>
+                        <span x-text="getStatusText()"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Tabs Navigation -->
+    <nav class="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky z-20" style="top: 64px;">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6">
+            <div class="flex space-x-8">
+                <button @click="currentTab = 'dashboard'" 
+                        class="py-4 px-1 border-b-2 font-medium text-sm transition-colors"
+                        :class="currentTab === 'dashboard' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-300 hover:border-slate-600'">
+                    <div class="flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 16a1 1 0 011-1h4a1 1 0 011 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1v-3zM14 16a1 1 0 011-1h4a1 1 0 011 1v3a1 1 0 01-1 1h-4a1 1 0 01-1-1v-3z"/>
+                        </svg>
+                        Dashboard
+                    </div>
+                </button>
+                <button @click="currentTab = 'rules'" 
+                        class="py-4 px-1 border-b-2 font-medium text-sm transition-colors"
+                        :class="currentTab === 'rules' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-300 hover:border-slate-600'">
+                    <div class="flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                        </svg>
+                        Rules
+                        <span class="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-emerald-500/20 text-emerald-400" x-text="getMergedRules().length"></span>
+                    </div>
+                </button>
+                <button @click="currentTab = 'activity'" 
+                        class="py-4 px-1 border-b-2 font-medium text-sm transition-colors"
+                        :class="currentTab === 'activity' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-300 hover:border-slate-600'">
+                    <div class="flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        Activity
+                        <span class="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-red-500/20 text-red-400" x-text="logs.total"></span>
+                    </div>
+                </button>
+                <button @click="currentTab = 'settings'" 
+                        class="py-4 px-1 border-b-2 font-medium text-sm transition-colors"
+                        :class="currentTab === 'settings' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-300 hover:border-slate-600'">
+                    <div class="flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        </svg>
+                        Settings
+                    </div>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 transition-smooth"
+          :class="status === 'active' ? '' : (status === 'not_installed' || status === 'permission_denied' || status === 'error' || status === 'inactive' ? '' : 'opacity-40 pointer-events-none')">
+        
+        <!-- Error Banner when UFW is not installed -->
+        <div x-show="status === 'not_installed'" 
+             class="fixed inset-0 z-40 flex items-start justify-center pt-20 px-4 sm:px-6 pointer-events-auto"
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             x-transition:leave="transition ease-in duration-200"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0">
+            <!-- Backdrop -->
+            <div class="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"></div>
+            
+            <!-- Modal -->
+            <div class="relative bg-slate-900 border border-orange-500/50 rounded-xl p-6 shadow-2xl max-w-4xl w-full"
+                 x-transition:enter="transition ease-out duration-300"
+                 x-transition:enter-start="opacity-0 -translate-y-4"
+                 x-transition:enter-end="opacity-100 translate-y-0"
+                 x-transition:leave="transition ease-in duration-200"
+                 x-transition:leave-start="opacity-100 translate-y-0"
+                 x-transition:leave-end="opacity-0 -translate-y-4">
+                <div class="flex items-start gap-4">
+                    <div class="flex-shrink-0">
+                        <div class="w-12 h-12 rounded-lg bg-orange-500/10 flex items-center justify-center">
+                            <svg class="w-6 h-6 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="text-lg font-semibold text-white mb-2">UFW Not Installed</h3>
+                        <p class="text-sm text-slate-300 mb-4 leading-relaxed">
+                            UFW (Uncomplicated Firewall) is not detected on this system. Please install it to manage your firewall.
+                        </p>
+                        <div class="bg-slate-950/80 rounded-lg p-3 mb-4 font-mono text-xs text-slate-300 border border-slate-800">
+                            <div class="text-slate-500 mb-1.5"># Debian/Ubuntu:</div>
+                            <div class="text-orange-400">sudo apt install ufw</div>
+                            <div class="text-slate-500 mt-2.5 mb-1.5"># CentOS/RHEL:</div>
+                            <div class="text-orange-400">sudo yum install ufw</div>
+                        </div>
+                        <button @click="fetchRules()" 
+                                class="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white text-sm font-medium rounded-lg transition-smooth flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                            </svg>
+                            Retry Detection
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Error Banner for permission denied -->
+        <div x-show="status === 'permission_denied'" 
+             class="fixed inset-0 z-40 flex items-start justify-center pt-20 px-4 sm:px-6 pointer-events-auto"
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             x-transition:leave="transition ease-in duration-200"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0">
+            <!-- Backdrop -->
+            <div class="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"></div>
+            
+            <!-- Modal -->
+            <div class="relative bg-slate-900 border border-yellow-500/50 rounded-xl p-6 shadow-2xl max-w-4xl w-full"
+                 x-transition:enter="transition ease-out duration-300"
+                 x-transition:enter-start="opacity-0 -translate-y-4"
+                 x-transition:enter-end="opacity-100 translate-y-0"
+                 x-transition:leave="transition ease-in duration-200"
+                 x-transition:leave-start="opacity-100 translate-y-0"
+                 x-transition:leave-end="opacity-0 -translate-y-4">
+                <div class="flex items-start gap-4">
+                    <div class="flex-shrink-0">
+                        <div class="w-12 h-12 rounded-lg bg-yellow-500/10 flex items-center justify-center">
+                            <svg class="w-6 h-6 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="text-lg font-semibold text-white mb-2">Permission Denied</h3>
+                        <p class="text-sm text-slate-300 mb-4 leading-relaxed">
+                            This application needs elevated privileges to manage UFW. Please ensure the application is running with sudo or proper permissions.
+                        </p>
+                        <div class="bg-slate-950/80 rounded-lg p-3 mb-4 font-mono text-xs text-slate-300 border border-slate-800">
+                            <div class="text-yellow-400">sudo node index.js</div>
+                        </div>
+                        <button @click="fetchRules()" 
+                                class="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 text-white text-sm font-medium rounded-lg transition-smooth flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                            </svg>
+                            Retry
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Error Banner for unknown errors -->
+        <div x-show="status === 'error'" 
+             class="fixed inset-0 z-40 flex items-start justify-center pt-20 px-4 sm:px-6 pointer-events-auto"
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             x-transition:leave="transition ease-in duration-200"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0">
+            <!-- Backdrop -->
+            <div class="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"></div>
+            
+            <!-- Modal -->
+            <div class="relative bg-slate-900 border border-red-500/50 rounded-xl p-6 shadow-2xl max-w-4xl w-full"
+                 x-transition:enter="transition ease-out duration-300"
+                 x-transition:enter-start="opacity-0 -translate-y-4"
+                 x-transition:enter-end="opacity-100 translate-y-0"
+                 x-transition:leave="transition ease-in duration-200"
+                 x-transition:leave-start="opacity-100 translate-y-0"
+                 x-transition:leave-end="opacity-0 -translate-y-4">
+                <div class="flex items-start gap-4">
+                    <div class="flex-shrink-0">
+                        <div class="w-12 h-12 rounded-lg bg-red-500/10 flex items-center justify-center">
+                            <svg class="w-6 h-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="text-lg font-semibold text-white mb-2">Connection Error</h3>
+                        <p class="text-sm text-slate-300 mb-4 leading-relaxed">
+                            Unable to communicate with UFW. Please check the system logs or try again.
+                        </p>
+                        <button @click="fetchRules()" 
+                                class="px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-sm font-medium rounded-lg transition-smooth flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                            </svg>
+                            Retry Connection
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Warning Banner when UFW is disabled -->
+        <div x-show="status === 'inactive'" 
+             class="fixed inset-0 z-40 flex items-start justify-center pt-20 px-4 sm:px-6 pointer-events-auto"
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             x-transition:leave="transition ease-in duration-200"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0">
+            <!-- Backdrop -->
+            <div class="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"></div>
+            
+            <!-- Modal -->
+            <div class="relative bg-slate-900 border border-red-500/50 rounded-xl p-6 shadow-2xl max-w-4xl w-full"
+                 x-transition:enter="transition ease-out duration-300"
+                 x-transition:enter-start="opacity-0 -translate-y-4"
+                 x-transition:enter-end="opacity-100 translate-y-0"
+                 x-transition:leave="transition ease-in duration-200"
+                 x-transition:leave-start="opacity-100 translate-y-0"
+                 x-transition:leave-end="opacity-0 -translate-y-4">
+                <div class="flex items-start gap-4">
+                    <div class="flex-shrink-0">
+                        <div class="w-12 h-12 rounded-lg bg-red-500/10 flex items-center justify-center">
+                            <svg class="w-6 h-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="text-lg font-semibold text-white mb-2">Firewall Disabled</h3>
+                        <p class="text-sm text-slate-300 mb-4 leading-relaxed">
+                            UFW is currently <strong class="text-red-400">inactive</strong>. Your server is not protected and all ports are accessible. 
+                            Enable the firewall to secure your system.
+                        </p>
+                        <button @click="toggleUFW()" 
+                                :disabled="loading"
+                                class="px-4 py-2 bg-red-600 hover:bg-red-500 disabled:bg-slate-700 disabled:text-slate-500 text-white text-sm font-medium rounded-lg transition-smooth flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                            </svg>
+                            Enable Firewall Now
+                        </button>
+                    </div>
+                    <button @click="status = 'dismissed'" class="text-slate-400 hover:text-slate-200 transition-colors">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dashboard Tab -->
+        <div x-show="currentTab === 'dashboard'" class="space-y-6">
+            <!-- KPIs -->
+            <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Active Rules -->
+            <div class="bg-slate-900/50 border border-slate-800 rounded-xl p-5 hover:border-slate-700 transition-smooth">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Active Rules</span>
+                    <div class="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                        <svg class="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                        </svg>
+                    </div>
+                </div>
+                <div class="text-2xl font-bold text-white" x-text="getMergedRules().length"></div>
+                <p class="text-xs text-slate-500 mt-1">Open ports</p>
+            </div>
+
+            <!-- Blocked Today -->
+            <div class="bg-slate-900/50 border border-slate-800 rounded-xl p-5 hover:border-slate-700 transition-smooth">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Blocked Attempts</span>
+                    <div class="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center">
+                        <svg class="w-4 h-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+                        </svg>
+                    </div>
+                </div>
+                <div class="text-2xl font-bold text-white">
+                    <span x-show="!logsLoaded" class="skeleton bg-slate-800 rounded w-16 h-8 inline-block"></span>
+                    <span x-show="logsLoaded">
+                        <span x-text="logs.total || 0"></span>
+                        <span x-show="logs.total >= (logs.maxLines || settings.logMaxLines)" class="text-amber-400">+</span>
+                    </span>
+                </div>
+                <p class="text-xs text-slate-500 mt-1">
+                    <span x-show="logs.total < (logs.maxLines || settings.logMaxLines)">Total connections</span>
+                    <span x-show="logs.total >= (logs.maxLines || settings.logMaxLines) && logs.oldestTime" class="text-amber-400">
+                        since <span x-text="logs.oldestTime || 'N/A'"></span>
+                    </span>
+                </p>
+            </div>
+
+            <!-- Unique IPs -->
+            <div class="bg-slate-900/50 border border-slate-800 rounded-xl p-5 hover:border-slate-700 transition-smooth">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Unique IPs</span>
+                    <div class="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                        <svg class="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/>
+                        </svg>
+                    </div>
+                </div>
+                <div class="text-2xl font-bold text-white">
+                    <span x-show="!logsLoaded" class="skeleton bg-slate-800 rounded w-16 h-8 inline-block"></span>
+                    <span x-show="logsLoaded" x-text="Object.keys(logs.byIp || {}).length"></span>
+                </div>
+                <p class="text-xs text-slate-500 mt-1">Attackers detected</p>
+            </div>
+
+            <!-- Targeted Ports -->
+            <div class="bg-slate-900/50 border border-slate-800 rounded-xl p-5 hover:border-slate-700 transition-smooth">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Targeted Ports</span>
+                    <div class="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                        <svg class="w-4 h-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                    </div>
+                </div>
+                <div class="text-2xl font-bold text-white">
+                    <span x-show="!logsLoaded" class="skeleton bg-slate-800 rounded w-16 h-8 inline-block"></span>
+                    <span x-show="logsLoaded" x-text="Object.keys(logs.byPort || {}).length"></span>
+                </div>
+                <p class="text-xs text-slate-500 mt-1">Different ports</p>
+            </div>
+        </section>
+
+            <!-- Charts Section -->
+            <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Port Distribution Chart -->
+                <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6 hover:border-slate-700 transition-smooth">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-sm font-medium text-slate-400 uppercase tracking-wider">Targeted Services</h3>
+                        <span class="text-xs text-slate-600" x-text="Object.keys(logs.byPort || {}).length + ' ports'"></span>
+                    </div>
+                    <div x-show="Object.keys(logs.byPort || {}).length > 0" class="h-64 flex items-center justify-center">
+                        <canvas id="portDonutChart"></canvas>
+                    </div>
+                    <p x-show="Object.keys(logs.byPort || {}).length === 0" class="text-center py-8 text-slate-600 text-xs">No data yet</p>
+                </div>
+
+                <!-- Attack Sources Map -->
+                <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6 hover:border-slate-700 transition-smooth">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-sm font-medium text-slate-400 uppercase tracking-wider">Attack Sources</h3>
+                        <span class="text-xs text-slate-600" x-text="Object.keys(logs.byIp || {}).length + ' IPs'"></span>
+                    </div>
+                    <div x-show="Object.keys(logs.byIp || {}).length > 0" class="space-y-3">
+                        <template x-for="[ip, count] in sortedIpsCache.slice(0, 8)" :key="ip">
+                            <div class="flex items-center gap-3">
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="text-xs font-mono text-slate-300 truncate" x-text="ip"></span>
+                                        <span class="text-xs text-slate-500 ml-2" x-text="count + ' hits'"></span>
+                                    </div>
+                                    <div class="h-1.5 bg-slate-800/80 rounded-full overflow-hidden">
+                                        <div class="h-full rounded-full bar-animate bg-gradient-to-r from-amber-500 to-red-500"
+                                             :style="'width: ' + Math.min(100, (count / getMaxIpCount()) * 100) + '%'">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                    <p x-show="Object.keys(logs.byIp || {}).length === 0" class="text-center py-8 text-slate-600 text-xs">No data yet</p>
+                </div>
+            </section>
+
+            <!-- Protocol & Service Type Distribution -->
+            <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Protocol Distribution -->
+                <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6 hover:border-slate-700 transition-smooth">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-sm font-medium text-slate-400 uppercase tracking-wider">Protocol Distribution</h3>
+                    </div>
+                    <div x-show="logs.recent?.length > 0" class="space-y-4">
+                        <template x-for="proto in getProtocolStats()" :key="proto.name">
+                            <div>
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-sm font-medium text-slate-300 uppercase" x-text="proto.name"></span>
+                                    <span class="text-xs text-slate-500" x-text="proto.count + ' (' + proto.percent + '%)'"></span>
+                                </div>
+                                <div class="h-2 bg-slate-800/80 rounded-full overflow-hidden">
+                                    <div class="h-full rounded-full bar-animate"
+                                         :class="proto.name === 'TCP' ? 'bg-gradient-to-r from-blue-500 to-cyan-500' : 'bg-gradient-to-r from-purple-500 to-pink-500'"
+                                         :style="'width: ' + proto.percent + '%'">
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                    <p x-show="!logs.recent?.length" class="text-center py-8 text-slate-600 text-xs">No data yet</p>
+                </div>
+
+                <!-- Service Categories -->
+                <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6 hover:border-slate-700 transition-smooth">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-sm font-medium text-slate-400 uppercase tracking-wider">Service Categories</h3>
+                    </div>
+                    <div x-show="Object.keys(logs.byPort || {}).length > 0" class="grid grid-cols-2 gap-3">
+                        <template x-for="category in getServiceCategories()" :key="category.name">
+                            <div class="bg-slate-800/50 rounded-lg p-3 hover:bg-slate-800 transition-smooth">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <div class="w-8 h-8 rounded-lg flex items-center justify-center"
+                                         :class="category.color">
+                                        <span x-html="category.icon"></span>
+                                    </div>
+                                    <span class="text-xs font-medium text-slate-400" x-text="category.name"></span>
+                                </div>
+                                <div class="text-xl font-bold text-white" x-text="category.count"></div>
+                                <div class="text-xs text-slate-500" x-text="category.percent + '% of attacks'"></div>
+                            </div>
+                        </template>
+                    </div>
+                    <p x-show="Object.keys(logs.byPort || {}).length === 0" class="text-center py-8 text-slate-600 text-xs">No data yet</p>
+                </div>
+            </section>
+        </div>
+
+        <!-- Rules Tab -->
+        <div x-show="currentTab === 'rules'" class="space-y-6">
+            <!-- Rules Stats -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-slate-900/50 border border-slate-800 rounded-xl p-4 hover:border-slate-700 transition-smooth">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                            <svg class="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="text-2xl font-bold text-white" x-text="getMergedRules().length"></div>
+                            <div class="text-xs text-slate-500">Open Ports</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900/50 border border-slate-800 rounded-xl p-4 hover:border-slate-700 transition-smooth">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                            <svg class="w-5 h-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="text-2xl font-bold text-white" x-text="getMergedRules().filter(r => r.hasV6).length"></div>
+                            <div class="text-xs text-slate-500">IPv6 Enabled</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900/50 border border-slate-800 rounded-xl p-4 hover:border-slate-700 transition-smooth">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                            <svg class="w-5 h-5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="text-2xl font-bold text-white" x-text="new Set(getMergedRules().map(r => getServiceName(r.port))).size"></div>
+                            <div class="text-xs text-slate-500">Services</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900/50 border border-slate-800 rounded-xl p-4 hover:border-slate-700 transition-smooth">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-slate-500/10 flex items-center justify-center">
+                            <svg class="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="text-2xl font-bold text-white" x-text="getMergedRules().filter(r => !r.hasV6).length"></div>
+                            <div class="text-xs text-slate-500">IPv4 Only</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <section>
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                <div>
+                    <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wider">
+                        Allowed Services
+                        <span class="text-slate-600 font-normal" x-text="'(' + getMergedRules().length + ')'"></span>
+                    </h2>
+                    <p class="text-xs text-slate-500 mt-1">Ports currently open for incoming connections</p>
+                </div>
+                <div class="flex gap-2">
+                    <input type="text" 
+                           x-model="customPort" 
+                           placeholder="Port number..."
+                           @keyup.enter="allowCustom()"
+                           class="w-32 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 transition-smooth">
+                    <button @click="allowCustom()" 
+                            :disabled="!customPort || loading"
+                            class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-smooth flex items-center gap-2 shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                        </svg>
+                        Allow Port
+                    </button>
+                </div>
+            </div>
+            
+            <div x-show="getMergedRules().length === 0" class="text-center py-12 rounded-xl border border-slate-800 bg-slate-900/30">
+                <svg class="w-16 h-16 mx-auto mb-4 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                </svg>
+                <p class="text-slate-500 text-sm mb-2">No services allowed yet</p>
+                <p class="text-slate-600 text-xs">Add a port above to get started</p>
+            </div>
+
+            <div class="space-y-3" x-show="getMergedRules().length > 0">
+                <template x-for="service in getMergedRules()" :key="service.port">
+                    <div class="group relative rounded-xl border border-slate-800 bg-slate-900/50 hover:border-emerald-500/50 transition-all overflow-hidden">
+                        <div class="flex items-center gap-4 p-4">
+                            <!-- Icon & Service Info -->
+                            <div class="flex items-center gap-4 flex-1 min-w-0">
+                                <div class="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 flex-shrink-0" 
+                                     x-html="getPortIconLarge(service.port)"></div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <h3 class="font-semibold text-white text-base" x-text="getServiceName(service.port)"></h3>
+                                        <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 text-xs font-medium">Active</span>
+                                    </div>
+                                    <div class="flex items-center gap-3 text-xs text-slate-500">
+                                        <span class="font-mono" x-text="'Port ' + service.port"></span>
+                                        <span class="w-1 h-1 rounded-full bg-slate-700"></span>
+                                        <span class="flex items-center gap-1">
+                                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/>
+                                            </svg>
+                                            <span x-text="service.hasV6 ? 'IPv4 + IPv6' : 'IPv4 only'"></span>
+                                        </span>
+                                        <span class="w-1 h-1 rounded-full bg-slate-700"></span>
+                                        <span>TCP/UDP</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Actions -->
+                            <div class="flex items-center gap-2 flex-shrink-0">
+                                <button @click="currentTab = 'activity'" 
+                                        class="px-3 py-2 text-xs text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-smooth flex items-center gap-1.5">
+                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                                    </svg>
+                                    View Activity
+                                </button>
+                                <button @click="confirmDelete(service.port)" 
+                                        class="px-3 py-2 text-xs text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-smooth flex items-center gap-1.5">
+                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                    </svg>
+                                    Remove
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Progress bar indicator (subtle) -->
+                        <div class="h-1 bg-gradient-to-r from-emerald-500/20 to-emerald-500/5"></div>
+                    </div>
+                </template>
+            </div>
+            </section>
+        </div>
+
+        <!-- Activity Tab -->
+        <div x-show="currentTab === 'activity'" class="space-y-6">
+            <section>
+            
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                <div>
+                    <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wider">
+                        Blocked Attempts
+                        <span class="text-slate-600 font-normal" x-text="'(' + logs.total + (logs.total >= (logs.maxLines || settings.logMaxLines) ? '+ analyzed' : ' total') + ')'"></span>
+                    </h2>
+                    <p class="text-xs text-slate-500 mt-1">
+                        <span>Recent connection attempts blocked by firewall</span>
+                        <span x-show="logs.total >= (logs.maxLines || settings.logMaxLines) && logs.oldestTime" class="text-amber-400"> (since <span x-text="logs.oldestTime || 'N/A'"></span>)</span>
+                    </p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div x-show="myIp" class="px-3 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700">
+                        <span class="text-xs text-slate-500">Your IP:</span>
+                        <span class="text-xs font-mono text-slate-300 ml-1" x-text="myIp"></span>
+                    </div>
+                    <button @click="fetchLogs(); selectedIp = null; showToast('Logs refreshed', 'success')" 
+                            class="px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-smooth flex items-center gap-2 border border-slate-700">
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                        </svg>
+                        Refresh
+                    </button>
+                </div>
+            </div>
+
+            <!-- Selected IP info -->
+            <div x-show="selectedIp" 
+                 x-transition:enter="transition ease-out duration-200"
+                 x-transition:enter-start="opacity-0 -translate-y-2"
+                 x-transition:enter-end="opacity-100 translate-y-0"
+                 class="mb-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+                        <svg class="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="text-sm text-amber-300 font-medium">Filtered by IP</p>
+                        <p class="text-xs text-amber-400/70">
+                            Showing ports targeted by <span class="font-mono font-semibold" x-text="selectedIp"></span>
+                        </p>
+                    </div>
+                </div>
+                <button @click="selectedIp = null" 
+                        class="px-3 py-1.5 text-xs text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 rounded-lg transition-smooth font-medium">
+                    Clear filter
+                </button>
+            </div>
+            
+            <div x-show="logs.total === 0" class="text-center py-16 rounded-xl border border-slate-800 bg-slate-900/30">
+                <div class="w-20 h-20 mx-auto mb-4 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                    <svg class="w-10 h-10 text-emerald-500/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                    </svg>
+                </div>
+                <p class="text-slate-400 font-medium mb-1">All Clear!</p>
+                <p class="text-sm text-slate-600">No blocked attempts recorded yet</p>
+            </div>
+
+            <div x-show="logs.total > 0" class="space-y-6">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Top Attacked Ports -->
+                    <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6 hover:border-slate-700 transition-smooth">
+                        <div class="flex items-center justify-between mb-5">
+                            <div class="flex items-center gap-2">
+                                <div class="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center">
+                                    <svg class="w-4 h-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 class="text-xs font-medium text-slate-400 uppercase tracking-wider">
+                                        <span x-text="selectedIp ? 'Ports Targeted' : 'Top Targeted Ports'"></span>
+                                    </h3>
+                                    <p x-show="selectedIp" class="text-xs text-slate-600 mt-0.5" x-text="'By ' + selectedIp"></p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="space-y-3">
+                            <template x-for="[port, count] in getPortsToShow()" :key="port">
+                                <div class="flex items-center gap-3 rounded-lg p-2 -m-2 transition-all group hover:bg-slate-800/50"
+                                     :class="isPortHighlighted(port) ? 'highlight-port' : ''">
+                                    <div class="w-14 text-right flex-shrink-0">
+                                        <span class="text-sm font-mono font-semibold" :class="isPortHighlighted(port) ? 'text-amber-300' : 'text-white'" x-text="port"></span>
+                                    </div>
+                                    <div class="flex-1 h-7 bg-slate-800/80 rounded-lg overflow-visible relative">
+                                        <div class="h-full rounded-lg bar-animate absolute left-0"
+                                             :class="isPortHighlighted(port) ? 'bg-gradient-to-r from-amber-500/80 to-orange-500/80' : 'bg-gradient-to-r from-red-500/80 to-orange-500/80'"
+                                             :style="'width: ' + Math.min(100, (count / getMaxPortCount()) * 100) + '%'">
+                                        </div>
+                                        <div class="h-full flex items-center relative"
+                                             :class="(count / getMaxPortCount()) >= 0.5 ? 'justify-end pr-2.5' : 'justify-start pl-2'">
+                                            <span class="text-xs font-semibold z-10"
+                                                  :class="(count / getMaxPortCount()) >= 0.5 ? 'text-white' : 'text-slate-300'"
+                                                  x-text="count"></span>
+                                        </div>
+                                    </div>
+                                    <div class="w-20 text-xs flex items-center gap-1.5 flex-shrink-0" :class="isPortHighlighted(port) ? 'text-amber-400' : 'text-slate-400'">
+                                        <span x-html="getPortIcon(port)"></span>
+                                        <span class="truncate" x-text="getServiceName(port)"></span>
+                                    </div>
+                                    <button @click.stop="confirmAllow(port)" 
+                                            x-show="!isAllowed(port)"
+                                            class="opacity-0 group-hover:opacity-100 px-3 py-1.5 text-xs bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-all flex items-center gap-1.5 font-medium shadow-lg shadow-emerald-500/20">
+                                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                        </svg>
+                                        Allow
+                                    </button>
+                                    <span x-show="isAllowed(port)" class="px-2.5 py-1 text-xs bg-emerald-500/20 text-emerald-400 rounded-lg flex items-center gap-1.5 font-medium">
+                                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                        Open
+                                    </span>
+                                </div>
+                            </template>
+                            <p x-show="selectedIp && getPortsToShow().length === 0" class="text-center py-6 text-slate-600 text-xs">
+                                No port data for this IP
+                            </p>
+                        </div>
+                        <div x-show="!selectedIp && Object.keys(logs.byPort || {}).length > portsLimit" class="mt-4 text-center">
+                            <button @click="loadMorePorts()" class="px-4 py-2 text-xs text-slate-400 hover:text-emerald-400 border border-slate-700 hover:border-emerald-500 rounded-lg transition-smooth">
+                                Load more ports
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Top Attacker IPs -->
+                    <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6 hover:border-slate-700 transition-smooth">
+                        <div class="flex items-center justify-between mb-5">
+                            <div class="flex items-center gap-2">
+                                <div class="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                                    <svg class="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 class="text-xs font-medium text-slate-400 uppercase tracking-wider">Top Attacker IPs</h3>
+                                    <p class="text-xs text-slate-600 mt-0.5">Click to filter by IP</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            <template x-for="[ip, count] in getIpsToShow()" :key="ip">
+                                <div @click="selectedIp = selectedIp === ip ? null : ip"
+                                     class="flex items-center justify-between py-2.5 px-3 rounded-lg transition-smooth cursor-pointer group"
+                                     :class="{
+                                         'bg-red-500/20 border border-red-500/30 your-ip': ip === myIp && selectedIp !== ip,
+                                         'ip-selected border': selectedIp === ip,
+                                         'bg-slate-800/30 hover:bg-slate-800/60 border border-transparent': ip !== myIp && selectedIp !== ip
+                                     }">
+                                    <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                                        <span x-show="ip === myIp" class="text-xs px-2 py-0.5 rounded bg-red-500 text-white font-semibold flex-shrink-0">YOU</span>
+                                        <span class="text-sm font-mono truncate" 
+                                              :class="{
+                                                  'text-red-300 font-semibold': ip === myIp,
+                                                  'text-amber-300 font-semibold': selectedIp === ip && ip !== myIp,
+                                                  'text-slate-300': ip !== myIp && selectedIp !== ip
+                                              }" 
+                                              x-text="ip"></span>
+                                    </div>
+                                    <div class="flex items-center gap-2 flex-shrink-0">
+                                        <span x-show="selectedIp === ip" class="text-xs text-amber-400">
+                                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
+                                            </svg>
+                                        </span>
+                                        <span class="text-xs px-2.5 py-1 rounded-lg font-medium" 
+                                              :class="{
+                                                  'bg-red-500/30 text-red-300': ip === myIp,
+                                                  'bg-amber-500/30 text-amber-300': selectedIp === ip && ip !== myIp,
+                                                  'bg-red-500/10 text-red-400': ip !== myIp && selectedIp !== ip
+                                              }"
+                                              x-text="count + ' hits'"></span>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                        <p x-show="Object.keys(logs.byIp).length === 0" class="text-center py-6 text-slate-600 text-xs">
+                            No external IPs blocked yet
+                        </p>
+                        <div x-show="Object.keys(logs.byIp || {}).length > ipsLimit" class="mt-4 text-center">
+                            <button @click="loadMoreIps()" class="px-4 py-2 text-xs text-slate-400 hover:text-emerald-400 border border-slate-700 hover:border-emerald-500 rounded-lg transition-smooth">
+                                Load more IPs
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Activity -->
+                <div class="rounded-xl border border-slate-800 bg-slate-900/50 hover:border-slate-700 transition-smooth" x-show="logs.recent.length > 0">
+                    <div class="p-6 border-b border-slate-800">
+                        <div class="flex items-center gap-2">
+                            <div class="w-8 h-8 rounded-lg bg-slate-700/50 flex items-center justify-center">
+                                <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 class="text-xs font-medium text-slate-400 uppercase tracking-wider">Recent Activity</h3>
+                                <p class="text-xs text-slate-600 mt-0.5">Last blocked connections</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="text-xs text-slate-500 uppercase tracking-wider border-b border-slate-800">
+                                    <th class="text-left py-3 px-6 font-medium">Time</th>
+                                    <th class="text-left py-3 px-6 font-medium">Source IP</th>
+                                    <th class="text-left py-3 px-6 font-medium">Port</th>
+                                    <th class="text-left py-3 px-6 font-medium">Protocol</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-slate-300">
+                                <template x-for="(entry, idx) in logs.recent" :key="idx">
+                                    <tr class="border-t border-slate-800/30 hover:bg-slate-800/30 transition-smooth" 
+                                        :class="{
+                                            'bg-red-500/10': entry.src === myIp,
+                                            'bg-amber-500/5': selectedIp === entry.src && entry.src !== myIp
+                                        }">
+                                        <td class="py-3 px-6 text-slate-500 font-mono text-xs" x-text="entry.time"></td>
+                                        <td class="py-3 px-6 font-mono">
+                                            <span class="flex items-center gap-2">
+                                                <span x-show="entry.src === myIp" class="text-xs px-1.5 py-0.5 rounded bg-red-500 text-white font-semibold">YOU</span>
+                                                <span :class="{
+                                                    'text-red-300 font-semibold': entry.src === myIp,
+                                                    'text-amber-300 font-semibold': selectedIp === entry.src && entry.src !== myIp,
+                                                    'text-slate-300': selectedIp !== entry.src && entry.src !== myIp
+                                                }" x-text="entry.src"></span>
+                                            </span>
+                                        </td>
+                                        <td class="py-3 px-6">
+                                            <span class="px-2.5 py-1 rounded-lg text-xs font-medium" 
+                                                  :class="selectedIp === entry.src ? 'bg-amber-500/20 text-amber-300' : 'bg-slate-800 text-slate-300'" 
+                                                  x-text="entry.port"></span>
+                                        </td>
+                                        <td class="py-3 px-6">
+                                            <span class="text-slate-500 text-xs uppercase tracking-wide" x-text="entry.proto"></span>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            </section>
+        </div>
+
+        <!-- Settings Tab -->
+        <div x-show="currentTab === 'settings'" class="space-y-6">
+            <section>
+                <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
+                    <h2 class="text-lg font-semibold text-white mb-4">Settings</h2>
+                    
+                    <!-- Log Lines Setting -->
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-300 mb-2">
+                                Log Lines to Analyze
+                            </label>
+                            <p class="text-xs text-slate-500 mb-3">
+                                Number of recent log lines to parse for statistics. Higher values provide more historical data but may slow down the dashboard.
+                            </p>
+                            <div class="flex items-center gap-3">
+                                <input type="number" 
+                                       x-model.number="settings.logMaxLines" 
+                                       min="100" 
+                                       max="50000" 
+                                       step="100"
+                                       class="w-32 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 transition-smooth">
+                                <span class="text-sm text-slate-400">lines</span>
+                                <span class="text-xs text-slate-600">(Server default: <span x-text="logs.maxLines || 1000"></span>)</span>
+                            </div>
+                        </div>
+
+                        <div class="pt-4 border-t border-slate-800">
+                            <div class="flex items-center gap-3">
+                                <button @click="saveSettings()" 
+                                        :disabled="loading"
+                                        class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white text-sm font-medium rounded-lg transition-smooth flex items-center gap-2">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                    </svg>
+                                    Apply & Refresh
+                                </button>
+                                <span x-show="settings.logMaxLines !== (logs.maxLines || 1000)" class="text-xs text-amber-400 flex items-center gap-1">
+                                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                                    </svg>
+                                    Unsaved changes
+                                </span>
+                            </div>
+                            <p class="text-xs text-slate-500 mt-2">
+                                This setting is stored in your browser and applies to all future log requests.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Info Section -->
+                    <div class="mt-6 pt-6 border-t border-slate-800">
+                        <h3 class="text-sm font-medium text-slate-400 uppercase tracking-wider mb-3">System Information</h3>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-slate-500">UFW Status</span>
+                                <span class="font-medium" :class="status === 'active' ? 'text-emerald-400' : 'text-red-400'" x-text="getStatusText()"></span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-500">Active Rules</span>
+                                <span class="text-white font-medium" x-text="getMergedRules().length"></span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-500">Total Blocked</span>
+                                <span class="text-white font-medium" x-text="logs.total || 0"></span>
+                            </div>
+                            <div class="flex justify-between" x-show="myIp">
+                                <span class="text-slate-500">Your IP</span>
+                                <span class="text-white font-mono text-xs" x-text="myIp"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+    </main>
+
+    <script>
+        // Store chart outside Alpine context to avoid reactivity issues
+        let globalPortDonutChart = null;
+
+        function firewall() {
+            return {
+                rules: [],
+                status: 'unknown',
+                loading: false,
+                initialLoading: true,
+                logsLoaded: false,
+                customPort: '',
+                myIp: null,
+                selectedIp: null,
+                csrfToken: null,
+                logs: { byPort: {}, byIp: {}, ipPorts: {}, recent: [], total: 0, maxPort: 1, maxIp: 1, maxLines: 1000 },
+                sortedPortsCache: [],
+                sortedIpsCache: [],
+                protocolStatsCache: [],
+                serviceCategoriesCache: [],
+                toasts: [],
+                toastIdCounter: 0,
+                currentTab: 'dashboard',
+                portsLimit: 10,
+                ipsLimit: 10,
+                settings: {
+                    logMaxLines: parseInt(localStorage.getItem('logMaxLines') || '1000', 10)
+                },
+                confirmModal: {
+                    show: false,
+                    title: '',
+                    message: '',
+                    onConfirm: () => {}
+                },
+
+                // Extended port info for display (with SVG icons)
+                portInfo: {
+                    20: { name: 'FTP Data', icon: 'folder' }, 21: { name: 'FTP', icon: 'folder' },
+                    22: { name: 'SSH', icon: 'terminal' }, 23: { name: 'Telnet', icon: 'terminal' },
+                    25: { name: 'SMTP', icon: 'mail' }, 53: { name: 'DNS', icon: 'globe' },
+                    80: { name: 'HTTP', icon: 'globe' }, 110: { name: 'POP3', icon: 'mail' },
+                    143: { name: 'IMAP', icon: 'mail' }, 443: { name: 'HTTPS', icon: 'lock' },
+                    465: { name: 'SMTPS', icon: 'mail' }, 587: { name: 'SMTP', icon: 'mail' },
+                    993: { name: 'IMAPS', icon: 'mail' }, 995: { name: 'POP3S', icon: 'mail' },
+                    1433: { name: 'MSSQL', icon: 'database' }, 1521: { name: 'Oracle', icon: 'database' },
+                    2049: { name: 'NFS', icon: 'hdd' }, 3000: { name: 'Dev', icon: 'code' },
+                    3306: { name: 'MySQL', icon: 'database' }, 3389: { name: 'RDP', icon: 'monitor' },
+                    4848: { name: 'GlassFish', icon: 'server' }, 5432: { name: 'PostgreSQL', icon: 'database' },
+                    5678: { name: 'n8n', icon: 'workflow' }, 5900: { name: 'VNC', icon: 'monitor' },
+                    6379: { name: 'Redis', icon: 'zap' }, 6443: { name: 'K8s', icon: 'cloud' },
+                    8000: { name: 'Dev', icon: 'code' }, 8080: { name: 'HTTP', icon: 'globe' },
+                    8443: { name: 'HTTPS', icon: 'lock' }, 8333: { name: 'Bitcoin', icon: 'bitcoin' },
+                    8888: { name: 'HTTP', icon: 'globe' }, 9000: { name: 'PHP-FPM', icon: 'code' },
+                    9200: { name: 'Elastic', icon: 'search' }, 9418: { name: 'Git', icon: 'git' },
+                    11211: { name: 'Memcached', icon: 'cpu' }, 27017: { name: 'MongoDB', icon: 'database' },
+                    27018: { name: 'MongoDB', icon: 'database' }, 28017: { name: 'Mongo Web', icon: 'database' },
+                    5672: { name: 'RabbitMQ', icon: 'message' }, 15672: { name: 'RabbitMQ', icon: 'message' },
+                    2375: { name: 'Docker', icon: 'box' }, 2376: { name: 'Docker', icon: 'box' },
+                    5601: { name: 'Kibana', icon: 'chart' }, 9090: { name: 'Prometheus', icon: 'activity' },
+                    3100: { name: 'Loki', icon: 'file' }, 8086: { name: 'InfluxDB', icon: 'trending' },
+                    1883: { name: 'MQTT', icon: 'radio' }, 8883: { name: 'MQTT', icon: 'radio' },
+                    5000: { name: 'Registry', icon: 'box' }, 6000: { name: 'X11', icon: 'monitor' },
+                    1194: { name: 'OpenVPN', icon: 'shield' }, 51820: { name: 'WireGuard', icon: 'shield' },
+                    500: { name: 'IPSec', icon: 'shield' }, 4500: { name: 'IPSec', icon: 'shield' },
+                    3128: { name: 'Proxy', icon: 'shuffle' }, 8081: { name: 'HTTP', icon: 'globe' },
+                    4443: { name: 'HTTPS', icon: 'lock' }, 9999: { name: 'Dev', icon: 'code' },
+                },
+
+                // SVG icons
+                icons: {
+                    folder: '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>',
+                    terminal: '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>',
+                    mail: '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>',
+                    globe: '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>',
+                    lock: '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>',
+                    database: '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>',
+                    hdd: '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7l4.5-4.5M4 7h16M4 7v10a2 2 0 002 2h12a2 2 0 002-2V7m-4.5-4.5L20 7M8 14h.01"/></svg>',
+                    code: '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>',
+                    monitor: '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>',
+                    server: '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/></svg>',
+                    workflow: '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>',
+                    zap: '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>',
+                    cloud: '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>',
+                    bitcoin: '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
+                    search: '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>',
+                    git: '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>',
+                    cpu: '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>',
+                    message: '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>',
+                    box: '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>',
+                    chart: '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>',
+                    activity: '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>',
+                    file: '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>',
+                    trending: '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>',
+                    radio: '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.636 18.364a9 9 0 010-12.728m12.728 0a9 9 0 010 12.728m-9.9-2.829a5 5 0 010-7.07m7.072 0a5 5 0 010 7.07M13 12a1 1 0 11-2 0 1 1 0 012 0z"/></svg>',
+                    shield: '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>',
+                    shuffle: '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>',
+                    plug: '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>',
+                },
+
+                async init() {
+                    // Progressive loading for better UX
+                    await this.fetchCsrfToken();
+                    
+                    // Load critical data first (rules and status)
+                    await this.fetchRules();
+                    this.initialLoading = false;
+                    
+                    // Then load logs and IP in parallel (non-blocking)
+                    this.fetchLogs().then(() => { this.logsLoaded = true; });
+                    this.fetchMyIp();
+                },
+
+                async fetchCsrfToken() {
+                    try {
+                        const res = await fetch('/api/csrf-token');
+                        const data = await res.json();
+                        this.csrfToken = data.token;
+                    } catch (e) {
+                        console.error('Failed to fetch CSRF token:', e);
+                    }
+                },
+
+                showToast(message, type = 'info') {
+                    const id = this.toastIdCounter++;
+                    this.toasts.push({ id, message, type });
+                    setTimeout(() => this.removeToast(id), 4000);
+                },
+
+                removeToast(id) {
+                    this.toasts = this.toasts.filter(t => t.id !== id);
+                },
+
+                confirmDelete(port) {
+                    this.confirmModal = {
+                        show: true,
+                        title: 'Remove Port Rule',
+                        message: `Are you sure you want to close port ${port}? This will block all incoming connections on this port.`,
+                        onConfirm: () => this.deleteRulesByPort(port)
+                    };
+                },
+
+                confirmAllow(port) {
+                    this.confirmModal = {
+                        show: true,
+                        title: 'Allow Port',
+                        message: `Are you sure you want to open port ${port}? This will allow incoming connections on this port.`,
+                        onConfirm: () => this.allowPort(port)
+                    };
+                },
+
+                async toggleUFW() {
+                    if (this.loading) return;
+                    
+                    const action = this.status === 'active' ? 'disable' : 'enable';
+                    const actionText = this.status === 'active' ? 'disable' : 'enable';
+                    
+                    // If enabling from inactive state, do it directly without confirmation
+                    if (this.status === 'inactive') {
+                        this.loading = true;
+                        try {
+                            const res = await fetch(`/api/rules/${action}`, { 
+                                method: 'POST',
+                                headers: { 'X-CSRF-Token': this.csrfToken }
+                            });
+                            if (res.ok) {
+                                await this.fetchCsrfToken();
+                                await this.fetchRules();
+                                this.showToast(`Firewall ${actionText}d successfully`, 'success');
+                            } else {
+                                throw new Error(`Failed to ${actionText} firewall`);
+                            }
+                        } catch (e) {
+                            console.error(`Failed to ${actionText} UFW:`, e);
+                            this.showToast(`Failed to ${actionText} firewall`, 'error');
+                        }
+                        this.loading = false;
+                        return;
+                    }
+                    
+                    // For disabling, show confirmation
+                    this.confirmModal = {
+                        show: true,
+                        title: `${actionText.charAt(0).toUpperCase() + actionText.slice(1)} Firewall`,
+                        message: 'Are you sure you want to disable UFW? This will leave your server unprotected and all ports will be accessible.',
+                        onConfirm: async () => {
+                            this.loading = true;
+                            try {
+                                const res = await fetch(`/api/rules/${action}`, { 
+                                    method: 'POST',
+                                    headers: { 'X-CSRF-Token': this.csrfToken }
+                                });
+                                if (res.ok) {
+                                    await this.fetchCsrfToken();
+                                    await this.fetchRules();
+                                    this.showToast(`Firewall ${actionText}d successfully`, 'success');
+                                } else {
+                                    throw new Error(`Failed to ${actionText} firewall`);
+                                }
+                            } catch (e) {
+                                console.error(`Failed to ${actionText} UFW:`, e);
+                                this.showToast(`Failed to ${actionText} firewall`, 'error');
+                            }
+                            this.loading = false;
+                        }
+                    };
+                },
+
+                async fetchMyIp() {
+                    try {
+                        const res = await fetch('/api/rules/whoami');
+                        const data = await res.json();
+                        this.myIp = data.ip;
+                    } catch (e) {
+                        console.error('Failed to get IP:', e);
+                    }
+                },
+
+                async fetchRules() {
+                    this.loading = true;
+                    try {
+                        const res = await fetch('/api/rules');
+                        const data = await res.json();
+                        this.rules = data.rules || [];
+                        this.status = data.status || 'unknown';
+                    } catch (e) {
+                        console.error('Failed to fetch:', e);
+                        this.showToast('Failed to fetch rules', 'error');
+                    }
+                    this.loading = false;
+                },
+
+                async fetchLogs() {
+                    try {
+                        const lines = this.settings.logMaxLines;
+                        const res = await fetch(`/api/logs?lines=${lines}`);
+                        const data = await res.json();
+                        
+                        // Optimize: avoid Math.max with spread on large arrays
+                        const portCounts = Object.values(data.byPort || {});
+                        let maxPort = 1;
+                        for (let i = 0; i < portCounts.length; i++) {
+                            if (portCounts[i] > maxPort) maxPort = portCounts[i];
+                        }
+                        
+                        const ipCounts = Object.values(data.byIp || {});
+                        let maxIp = 1;
+                        for (let i = 0; i < ipCounts.length; i++) {
+                            if (ipCounts[i] > maxIp) maxIp = ipCounts[i];
+                        }
+                        
+                        this.logs = {
+                            byPort: data.byPort || {},
+                            byIp: data.byIp || {},
+                            ipPorts: data.ipPorts || {},
+                            recent: data.recent || [],
+                            total: data.total || 0,
+                            maxLines: data.maxLines || 1000,
+                            maxPort: maxPort,
+                            maxIp: maxIp,
+                            oldestTime: data.oldestTime || null
+                        };
+                        
+                        // Pre-compute sorted arrays to avoid sorting on each render
+                        this.sortedPortsCache = Object.entries(data.byPort || {}).sort((a, b) => b[1] - a[1]);
+                        this.sortedIpsCache = Object.entries(data.byIp || {}).sort((a, b) => b[1] - a[1]);
+                        
+                        // Pre-compute protocol stats
+                        this.computeProtocolStats();
+                        
+                        // Pre-compute service categories
+                        this.computeServiceCategories();
+                        
+                        // Update donut chart
+                        this.updatePortDonutChart();
+                    } catch (e) {
+                        console.error('Failed to fetch logs:', e);
+                        this.showToast('Failed to fetch logs', 'error');
+                    }
+                },
+
+                async saveSettings() {
+                    localStorage.setItem('logMaxLines', this.settings.logMaxLines.toString());
+                    this.showToast('Settings saved. Refreshing data...', 'success');
+                    await this.fetchLogs();
+                },
+
+                getPortsToShow() {
+                    let sorted;
+                    if (this.selectedIp && this.logs.ipPorts && this.logs.ipPorts[this.selectedIp]) {
+                        // For filtered view, we need to sort (but it's a small subset)
+                        sorted = Object.entries(this.logs.ipPorts[this.selectedIp]).sort((a, b) => b[1] - a[1]);
+                    } else {
+                        // Use pre-sorted cache
+                        sorted = this.sortedPortsCache;
+                    }
+                    // Apply limit only in Activity tab - hard cap at 100 for performance
+                    const limit = this.currentTab === 'activity' ? Math.min(this.portsLimit, 100) : 100;
+                    return sorted.slice(0, limit);
+                },
+
+                getIpsToShow() {
+                    // Use pre-sorted cache - hard cap at 100 for performance
+                    const limit = this.currentTab === 'activity' ? Math.min(this.ipsLimit, 100) : 100;
+                    return this.sortedIpsCache.slice(0, limit);
+                },
+
+                loadMorePorts() {
+                    this.portsLimit += 10;
+                },
+
+                loadMoreIps() {
+                    this.ipsLimit += 10;
+                },
+
+                getMaxPortCount() {
+                    const ports = this.getPortsToShow();
+                    if (ports.length === 0) return 1;
+                    
+                    // Optimize: avoid spread operator and map
+                    let max = 1;
+                    for (let i = 0; i < ports.length; i++) {
+                        if (ports[i][1] > max) max = ports[i][1];
+                    }
+                    return max;
+                },
+                
+                getMaxIpCount() {
+                    return this.logs.maxIp || 1;
+                },
+
+                isPortHighlighted(port) {
+                    if (!this.selectedIp || !this.logs.ipPorts || !this.logs.ipPorts[this.selectedIp]) {
+                        return false;
+                    }
+                    return this.logs.ipPorts[this.selectedIp][port] !== undefined;
+                },
+
+                isAllowed(port) {
+                    return this.rules.some(r => 
+                        r.to.includes(port + '/') || r.to === port.toString()
+                    );
+                },
+
+                getMergedRules() {
+                    const merged = {};
+                    this.rules.forEach(rule => {
+                        if (!rule.action.includes('ALLOW')) return;
+                        // Extract port from rule.to (e.g., "22/tcp", "80", "443/tcp (v6)")
+                        const portMatch = rule.to.match(/^(\d+)/);
+                        if (!portMatch) return;
+                        const port = portMatch[1];
+                        const isV6 = rule.to.includes('(v6)');
+                        
+                        if (!merged[port]) {
+                            merged[port] = { port, ids: [rule.id], hasV6: isV6 };
+                        } else {
+                            merged[port].ids.push(rule.id);
+                            if (isV6) merged[port].hasV6 = true;
+                        }
+                    });
+                    return Object.values(merged).sort((a, b) => parseInt(a.port) - parseInt(b.port));
+                },
+
+                async deleteRulesByPort(port) {
+                    const rulesToDelete = this.rules.filter(r => r.to.match(new RegExp(`^${port}(/|$)`)));
+                    this.loading = true;
+                    try {
+                        for (const rule of rulesToDelete) {
+                            await fetch(`/api/rules/${rule.id}`, { method: 'DELETE' });
+                        }
+                        await this.fetchRules();
+                        this.showToast(`Port ${port} closed successfully`, 'success');
+                    } catch (e) {
+                        console.error('Failed to delete rule:', e);
+                        this.showToast(`Failed to close port ${port}`, 'error');
+                    }
+                    this.loading = false;
+                },
+
+                getPortIconLarge(port) {
+                    const portNum = parseInt(port);
+                    const info = this.portInfo[portNum];
+                    const iconName = info ? info.icon : 'plug';
+                    const icon = this.icons[iconName] || this.icons.plug;
+                    // Return larger version
+                    return icon ? icon.replace('w-3.5 h-3.5', 'w-6 h-6') : '';
+                },
+
+                async toggle(port) {
+                    if (this.isAllowed(port)) {
+                        const rule = this.rules.find(r => r.to.includes(port + '/') || r.to === port.toString());
+                        if (rule) await this.deleteRule(rule.id);
+                    } else {
+                        await this.allowPort(port);
+                    }
+                },
+
+                async allowPort(port) {
+                    this.loading = true;
+                    try {
+                        const res = await fetch('/api/rules', {
+                            method: 'POST',
+                            headers: { 
+                                'Content-Type': 'application/json',
+                                'X-CSRF-Token': this.csrfToken
+                            },
+                            body: JSON.stringify({ port: port.toString(), type: 'allow', protocol: 'both' })
+                        });
+                        if (res.ok) {
+                            await this.fetchCsrfToken();
+                            await this.fetchRules();
+                            this.showToast(`Port ${port} opened successfully`, 'success');
+                        } else {
+                            throw new Error('Failed to allow port');
+                        }
+                    } catch (e) {
+                        console.error('Failed to allow:', e);
+                        this.showToast(`Failed to open port ${port}`, 'error');
+                    }
+                    this.loading = false;
+                },
+
+                async allowCustom() {
+                    if (!this.customPort) return;
+                    const port = this.customPort;
+                    this.customPort = '';
+                    await this.allowPort(port);
+                },
+
+                async deleteRule(id) {
+                    this.loading = true;
+                    try {
+                        const res = await fetch('/api/rules/' + id, { 
+                            method: 'DELETE',
+                            headers: { 'X-CSRF-Token': this.csrfToken }
+                        });
+                        if (res.ok) {
+                            await this.fetchCsrfToken();
+                            setTimeout(() => this.fetchRules(), 200);
+                        }
+                    } catch (e) {
+                        console.error('Failed to delete:', e);
+                    }
+                },
+
+                getServiceName(port) {
+                    const portNum = parseInt(port);
+                    const info = this.portInfo[portNum];
+                    return info ? info.name : port;
+                },
+
+                getPortIcon(port) {
+                    const portNum = parseInt(port);
+                    const info = this.portInfo[portNum];
+                    if (!info) return this.icons.plug || '';
+                    return this.icons[info.icon] || '';
+                },
+
+                getStatusText() {
+                    switch(this.status) {
+                        case 'active': return 'Protected';
+                        case 'inactive': return 'Inactive';
+                        case 'not_installed': return 'Not Installed';
+                        case 'permission_denied': return 'No Permission';
+                        case 'error': return 'Error';
+                        default: return 'Unknown';
+                    }
+                },
+
+                computeProtocolStats() {
+                    const stats = {};
+                    let total = 0;
+                    
+                    (this.logs.recent || []).forEach(entry => {
+                        const proto = entry.proto.toUpperCase();
+                        stats[proto] = (stats[proto] || 0) + 1;
+                        total++;
+                    });
+                    
+                    this.protocolStatsCache = Object.entries(stats).map(([name, count]) => ({
+                        name,
+                        count,
+                        percent: total > 0 ? Math.round((count / total) * 100) : 0
+                    })).sort((a, b) => b.count - a.count);
+                },
+                
+                getProtocolStats() {
+                    return this.protocolStatsCache;
+                },
+
+                computeServiceCategories() {
+                    const categories = {
+                        'Web': { ports: [80, 443, 8080, 8443, 8000, 8888, 8081], icon: '<svg class="w-4 h-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>', color: 'bg-blue-500/10' },
+                        'Database': { ports: [3306, 5432, 27017, 27018, 1433, 1521, 6379, 9200], icon: '<svg class="w-4 h-4 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>', color: 'bg-purple-500/10' },
+                        'Mail': { ports: [25, 110, 143, 465, 587, 993, 995], icon: '<svg class="w-4 h-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>', color: 'bg-green-500/10' },
+                        'Remote': { ports: [22, 23, 3389, 5900, 5678], icon: '<svg class="w-4 h-4 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>', color: 'bg-orange-500/10' },
+                        'Other': { ports: [], icon: '<svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>', color: 'bg-slate-500/10' }
+                    };
+                    
+                    const counts = {};
+                    let total = 0;
+                    
+                    Object.entries(this.logs.byPort || {}).forEach(([port, count]) => {
+                        const portNum = parseInt(port);
+                        let found = false;
+                        
+                        for (const [catName, catData] of Object.entries(categories)) {
+                            if (catData.ports.includes(portNum)) {
+                                counts[catName] = (counts[catName] || 0) + count;
+                                found = true;
+                                break;
+                            }
+                        }
+                        
+                        if (!found) {
+                            counts['Other'] = (counts['Other'] || 0) + count;
+                        }
+                        total += count;
+                    });
+                    
+                    this.serviceCategoriesCache = Object.entries(counts)
+                        .map(([name, count]) => ({
+                            name,
+                            count,
+                            percent: total > 0 ? Math.round((count / total) * 100) : 0,
+                            icon: categories[name].icon,
+                            color: categories[name].color
+                        }))
+                        .sort((a, b) => b.count - a.count);
+                },
+                
+                getServiceCategories() {
+                    return this.serviceCategoriesCache;
+                },
+
+                initPortDonutChart() {
+                    const canvas = document.getElementById('portDonutChart');
+                    if (!canvas || typeof Chart === 'undefined') return;
+
+                    try {
+                        // Destroy existing chart if any
+                        if (globalPortDonutChart) {
+                            globalPortDonutChart.destroy();
+                            globalPortDonutChart = null;
+                        }
+
+                        // Get top 8 ports with service names
+                        const topPorts = this.sortedPortsCache.slice(0, 8);
+                        const labels = topPorts.map(([port, _]) => this.getServiceName(port));
+                        const data = topPorts.map(([_, count]) => count);
+                        
+                        // Color palette
+                        const colors = [
+                            'rgba(239, 68, 68, 0.8)',   // red
+                            'rgba(251, 146, 60, 0.8)',  // orange
+                            'rgba(251, 191, 36, 0.8)',  // amber
+                            'rgba(34, 197, 94, 0.8)',   // green
+                            'rgba(59, 130, 246, 0.8)',  // blue
+                            'rgba(168, 85, 247, 0.8)',  // purple
+                            'rgba(236, 72, 153, 0.8)',  // pink
+                            'rgba(148, 163, 184, 0.8)'  // slate
+                        ];
+
+                        globalPortDonutChart = new Chart(canvas, {
+                            type: 'doughnut',
+                            data: {
+                                labels: labels,
+                                datasets: [{
+                                    data: data,
+                                    backgroundColor: colors,
+                                    borderColor: 'rgb(15, 23, 42)',
+                                    borderWidth: 2,
+                                    hoverOffset: 8
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: true,
+                                plugins: {
+                                    legend: {
+                                        position: 'right',
+                                        labels: {
+                                            color: 'rgb(148, 163, 184)',
+                                            padding: 12,
+                                            font: {
+                                                size: 11,
+                                                family: 'system-ui'
+                                            },
+                                            usePointStyle: true,
+                                            pointStyle: 'circle'
+                                        }
+                                    },
+                                    tooltip: {
+                                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                                        titleColor: 'rgb(226, 232, 240)',
+                                        bodyColor: 'rgb(148, 163, 184)',
+                                        borderColor: 'rgb(51, 65, 85)',
+                                        borderWidth: 1,
+                                        padding: 12,
+                                        displayColors: true,
+                                        callbacks: {
+                                            label: function(context) {
+                                                const label = context.label || '';
+                                                const value = context.parsed || 0;
+                                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                                const percent = Math.round((value / total) * 100);
+                                                return ` ${label}: ${value} hits (${percent}%)`;
+                                            }
+                                        }
+                                    }
+                                },
+                                cutout: '65%',
+                                animation: {
+                                    animateRotate: true,
+                                    animateScale: false
+                                }
+                            }
+                        });
+                    } catch (e) {
+                        console.error('Failed to initialize port donut chart:', e);
+                    }
+                },
+
+                updatePortDonutChart() {
+                    if (typeof Chart === 'undefined') return;
+                    
+                    const canvas = document.getElementById('portDonutChart');
+                    if (!canvas) return;
+
+                    // If chart doesn't exist, create it
+                    if (!globalPortDonutChart) {
+                        this.initPortDonutChart();
+                        return;
+                    }
+
+                    try {
+                        // Update data
+                        const topPorts = this.sortedPortsCache.slice(0, 8);
+                        const labels = topPorts.map(([port, _]) => this.getServiceName(port));
+                        const data = topPorts.map(([_, count]) => count);
+
+                        globalPortDonutChart.data.labels = labels;
+                        globalPortDonutChart.data.datasets[0].data = data;
+                        globalPortDonutChart.update('none');
+                    } catch (e) {
+                        console.error('Failed to update port donut chart:', e);
+                        // Try to reinitialize
+                        globalPortDonutChart = null;
+                        this.initPortDonutChart();
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</body>
+</html>

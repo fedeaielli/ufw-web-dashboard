@@ -1,0 +1,38 @@
+{
+  "name": "ufw-web-dashboard",
+  "version": "1.0.0",
+  "description": "A simple web interface to monitor and manage your UFW firewall",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node --test --test-timeout=3000 tests/utils/*.test.js tests/middleware/*.test.js tests/security/*.test.js",
+    "test:watch": "node --test --watch --test-timeout=3000 tests/**/*.test.js",
+    "test:unit": "node --test --test-timeout=3000 tests/utils/*.test.js tests/middleware/*.test.js",
+    "test:integration": "node --test --test-timeout=10000 tests/integration/*.test.js",
+    "test:security": "node --test --test-timeout=3000 tests/security/*.test.js",
+    "test:coverage": "node --test --experimental-test-coverage --test-timeout=3000 tests/utils/*.test.js tests/middleware/*.test.js tests/security/*.test.js"
+  },
+  "keywords": [
+    "ufw",
+    "firewall",
+    "dashboard",
+    "monitoring",
+    "linux",
+    "security"
+  ],
+  "author": "Johan Massin <johan@trilogik.net>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bob6664569/ufw-web-dashboard.git"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "basic-auth": "^2.0.1",
+    "dotenv": "^16.4.7",
+    "express": "^5.2.1"
+  }
+}
