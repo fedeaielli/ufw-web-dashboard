@@ -5,6 +5,8 @@ A simple web interface to monitor and manage your UFW firewall. View blocked con
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)
 
+![Dashboard Screenshot](assets/screenshot.png)
+
 ## Features
 
 - Real-time monitoring of blocked connection attempts
