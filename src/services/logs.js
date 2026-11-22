@@ -104,7 +104,7 @@ export const aggregateLogLines = (logLines) => {
     // Pre-compile regex patterns for better performance
     const dptRegex = /DPT=(\d+)/;
     const srcRegex = /SRC=([0-9a-fA-F.:]+)/;
-    const timeRegex = /^(\w+\s+\d+\s+[\d:]+)/;
+    const timeRegex = /^(?:\w+\s+\d+\s+(\d{2}:\d{2}:\d{2})|\d{4}-\d{2}-\d{2}T(\d{2}:\d{2}:\d{2}))/;
     const protoRegex = /PROTO=(\w+)/;
 
     for (const line of logLines) {
@@ -116,8 +116,9 @@ export const aggregateLogLines = (logLines) => {
         const ip = srcMatch ? srcMatch[1] : null;
         const protoMatch = line.match(protoRegex);
         const external = isExternal(ip);
+        const time = timeMatch ? (timeMatch[1] || timeMatch[2]) : null;
 
-        if (timeMatch) times.push(timeMatch[1]);
+        if (time) times.push(time);
 
         // Ports are targets: count them even when the source is a LAN address.
         if (port) {
@@ -142,7 +143,7 @@ export const aggregateLogLines = (logLines) => {
         if (external && port) {
             if (protoMatch) {
                 recent.push({
-                    time: timeMatch ? timeMatch[1] : 'Unknown',
+                    time: time || 'Unknown',
                     src: ip,
                     port: port,
                     proto: protoMatch[1]
