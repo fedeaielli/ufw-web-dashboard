@@ -43,7 +43,7 @@ Deny rules, rule removal and disabling the firewall ask for confirmation because
 | Authentication | Single user from `F_USER`/`F_PASS`; in-memory sessions with an HttpOnly, SameSite=Strict cookie; 12 h idle timeout |
 | Security | CSRF token on every mutation bound to the session, timing-safe credential comparison, per-IP login blocking, request rate limiting, strict CSP |
 | Deployment | Direct Node process with root/sudo, or Docker with host networking, `NET_ADMIN` and the UFW paths mounted |
-| Tests | `node:test` unit and security suites; optional integration tests against a running server |
+| Tests | `node:test` unit, security and integration suites; integration starts a fake `ufw` and its own server |
 
 ## Requirements
 
@@ -119,12 +119,13 @@ sudo ufw status
 ## Testing
 
 ```bash
-npm test              # Unit and security tests (node:test, no dependencies)
+npm test              # Unit, security and integration tests (node:test)
 npm run test:unit     # Unit tests only
 npm run test:security # Security tests
+npm run test:integration # Integration test only
 ```
 
-Integration tests (`npm run test:integration`) expect a running server on `127.0.0.1:3300` and are skipped by default.
+The integration test starts its own server on a free port with a fake `ufw` in `PATH`, logs in with the cookie flow, and adds then removes a rule. It needs `npm ci` first.
 
 ## Security
 
