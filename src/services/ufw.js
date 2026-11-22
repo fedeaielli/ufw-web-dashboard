@@ -18,7 +18,7 @@ const runCommand = (cmd) => {
         exec(cmd, (error, stdout, stderr) => {
             if (error) {
                 logger.error('Command execution failed', { cmd, error: error.message });
-                return reject(stderr || error.message);
+                return reject(new Error(stderr || error.message));
             }
             logger.debug('Command executed successfully', { cmd });
             resolve(stdout);
