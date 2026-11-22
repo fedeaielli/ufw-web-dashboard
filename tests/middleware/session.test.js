@@ -23,6 +23,15 @@ describe('parseCookies', () => {
         assert.deepEqual(parseCookies('a=1; sid=abc'), { a: '1', sid: 'abc' });
         assert.deepEqual(parseCookies(''), {});
     });
+
+    it('decodes percent-encoded values', () => {
+        assert.deepEqual(parseCookies('sid=a%20b'), { sid: 'a b' });
+    });
+
+    it('ignores malformed percent-encoding', () => {
+        assert.deepEqual(parseCookies('sid=%'), {});
+        assert.deepEqual(parseCookies('sid=%ZZ; other=ok'), { other: 'ok' });
+    });
 });
 
 describe('sessions', () => {

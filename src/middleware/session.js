@@ -31,7 +31,12 @@ export const parseCookies = (header = '') => {
     for (const part of header.split(';')) {
         const index = part.indexOf('=');
         if (index > 0) {
-            cookies[part.slice(0, index).trim()] = decodeURIComponent(part.slice(index + 1).trim());
+            const name = part.slice(0, index).trim();
+            try {
+                cookies[name] = decodeURIComponent(part.slice(index + 1).trim());
+            } catch {
+                // Ignore malformed percent-encoding: treat the cookie as absent.
+            }
         }
     }
     return cookies;
