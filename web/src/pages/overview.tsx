@@ -10,6 +10,7 @@ import { PieChart } from "@/components/charts/pie-chart"
 import { PieSlice } from "@/components/charts/pie-slice"
 import { PieCenter } from "@/components/charts/pie-center"
 import { format, groupCounts, donutSlices, mergeRules, portName, protocolStats, serviceCategories } from "@/lib/logic"
+import { SPRING } from "@/lib/motion"
 import type { Dashboard } from "@/hooks/use-dashboard"
 import type { TabName } from "@/lib/types"
 
@@ -89,7 +90,7 @@ export function OverviewPage({ dashboard, onTab }: Props) {
         </CardHeader>
         <CardContent className="h-[240px] px-2 pb-4 sm:px-4">
           {series.length ? (
-            <AreaChart data={series} xDataKey="date" style={{ aspectRatio: "auto", height: "100%" }}>
+            <AreaChart data={series} xDataKey="date" animationDuration={300} enterTransition={SPRING} style={{ aspectRatio: "auto", height: "100%" }}>
               <Grid horizontal vertical={false} />
               <Area dataKey="count" fill="var(--chart-1)" stroke="var(--chart-1)" fillOpacity={0.25} />
               <XAxis />
@@ -111,7 +112,7 @@ export function OverviewPage({ dashboard, onTab }: Props) {
                   label: slice.key === "Other" ? "Other" : (portName(slice.key) || slice.key),
                   value: slice.count,
                   color: COLORS[index % COLORS.length],
-                }))} innerRadius={52} padAngle={0.02} size={168} className="shrink-0">
+                }))} innerRadius={52} padAngle={0.02} size={168} enterTransition={SPRING} enterStaggerScale={0} className="shrink-0">
                   {slices.map((slice, index) => (
                     <PieSlice key={slice.key} index={index} color={COLORS[index % COLORS.length]} />
                   ))}

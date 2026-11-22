@@ -9,6 +9,7 @@ import { BarChart } from "@/components/charts/bar-chart"
 import { Bar } from "@/components/charts/bar"
 import { Grid } from "@/components/charts/grid"
 import { countsForIp, filterRecent, format, groupCounts, portName } from "@/lib/logic"
+import { SPRING } from "@/lib/motion"
 import type { Dashboard } from "@/hooks/use-dashboard"
 import type { TabName } from "@/lib/types"
 
@@ -60,9 +61,9 @@ export function ActivityPage({ dashboard, onTab }: { dashboard: Dashboard; onTab
             {chartData.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">No blocked attempts in range.</p>
             ) : (
-              <BarChart data={chartData} xDataKey="name" orientation="horizontal" aspectRatio="2.6 / 1" margin={{ left: 8, right: 24 }}>
+              <BarChart data={chartData} xDataKey="name" orientation="horizontal" aspectRatio="2.6 / 1" animationDuration={300} enterTransition={SPRING} margin={{ left: 8, right: 24 }}>
                 <Grid horizontal={false} vertical />
-                <Bar dataKey="count" fill="var(--chart-1)" />
+                <Bar dataKey="count" fill="var(--chart-1)" staggerDelay={0} />
               </BarChart>
             )}
             {Object.keys(counts).length > LIMIT && (

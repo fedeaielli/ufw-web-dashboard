@@ -26,7 +26,7 @@ A single-host UFW console that turns raw firewall logs into blocked-traffic anal
 
 - Authenticated browser session, desktop-first.
 - UFW status and rules read from the host through the server.
-- Blocked-traffic analytics derived from the last N log lines (100–50,000).
+- Blocked-traffic analytics derived from the last N log lines (server default 1,000, configurable up to 10,000 by default).
 - Rule mutations are destructive on the host and need confirmation.
 - Login is public; everything else requires a session. CSRF token required on mutations.
 

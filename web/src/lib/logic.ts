@@ -1,3 +1,5 @@
+// shortcut: mirrors src/public/logic.js, which is still the test-backed copy.
+// Keep both in sync until the logic tests run directly against this module.
 import type { LogStats, MergedRule, RecentEntry, Rule } from "./types"
 
 const SERVICES: Record<string, string> = {

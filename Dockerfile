@@ -1,3 +1,11 @@
+FROM node:22-bookworm-slim AS web-build
+
+WORKDIR /web
+COPY web/package.json web/package-lock.json ./
+RUN npm ci
+COPY web/ ./
+RUN npm run build
+
 FROM node:22-bookworm-slim
 
 # ufw + its iptables/iproute2 dependencies, needed to manage the host firewall
@@ -12,6 +20,7 @@ RUN npm ci --omit=dev
 
 COPY index.js ./
 COPY src ./src
+COPY --from=web-build /web/dist ./web/dist
 
 ENV NODE_ENV=production \
     HOST=127.0.0.1 \
