@@ -10,23 +10,24 @@ import {
     protocolStats,
     serviceCategories,
     distinctServices,
-    countsForIp
+    countsForIp,
+    areaPath
 } from './logic.js';
 
 const $ = (id) => document.getElementById(id);
 
 const TABS = ['overview', 'rules', 'activity', 'settings'];
 const RANK_LIMIT = 8;
-const SLICE_COLORS = ['#ff6b6b', '#f97316', '#f59e0b', '#eab308', '#a8b3c2'];
-const OTHER_COLOR = '#64748b';
-const PROTO_COLORS = { TCP: '#4cc9f0', UDP: '#3ddc97' };
-const PROTO_FALLBACK = '#94a3b8';
+const SLICE_COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)'];
+const OTHER_COLOR = 'var(--faint)';
+const PROTO_COLORS = { TCP: 'var(--chart-1)', UDP: 'var(--chart-2)' };
+const PROTO_FALLBACK = 'var(--chart-4)';
 
 const state = {
     status: null,
     error: null,
     rules: [],
-    logs: { byPort: {}, byProto: {}, byIp: {}, ipPorts: {}, recent: [], total: 0 },
+    logs: { byPort: {}, byProto: {}, byIp: {}, ipPorts: {}, recent: [], series: [], total: 0 },
     myIp: null,
     filterIp: null,
     lines: Number(localStorage.getItem('logLines') || localStorage.getItem('logMaxLines')) || 1000,
@@ -201,6 +202,71 @@ function renderOverview() {
     renderProtocols();
     renderSources();
     renderCategories();
+    renderTraffic();
+    renderSpark();
+}
+
+function renderTraffic() {
+    const host = $('trafficChart');
+    const series = state.logs.series || [];
+    const total = series.reduce((sum, point) => sum + point.count, 0);
+
+    $('trafficMeta').textContent = series.length ? `${format(total)} attempts` : 'no data';
+
+    if (series.length === 0) {
+        host.innerHTML = '<p class="empty">No blocked attempts in range.</p>';
+        return;
+    }
+
+    const width = 720;
+    const height = 150;
+    const { line, area } = areaPath(series.map((point) => point.count), width, height);
+    const step = series.length > 1 ? width / (series.length - 1) : width;
+
+    const grid = [0.25, 0.5, 0.75].map((ratio) =>
+        `<line class="chart-grid" x1="0" y1="${(height * ratio).toFixed(1)}" x2="${width}" y2="${(height * ratio).toFixed(1)}"/>`
+    ).join('');
+
+    // Native <title> tooltips on hover columns: no JS crosshair to maintain
+    const hits = series.map((point, index) =>
+        `<rect class="chart-hit" x="${(index * step - step / 2).toFixed(1)}" y="0" width="${step.toFixed(1)}" height="${height}" fill="transparent"><title>${escapeHtml(point.t)} · ${format(point.count)} blocked</title></rect>`
+    ).join('');
+
+    host.innerHTML = `<svg viewBox="0 0 ${width} ${height + 18}" role="img" aria-label="Blocked attempts over time">
+        <defs>
+            <linearGradient id="trafficFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="var(--chart-1)" stop-opacity="0.35"/>
+                <stop offset="100%" stop-color="var(--chart-1)" stop-opacity="0"/>
+            </linearGradient>
+        </defs>
+        ${grid}
+        <path class="chart-area" d="${area}"/>
+        <path class="chart-line" d="${line}"/>
+        ${hits}
+        <text class="chart-axis" x="0" y="${height + 14}">${escapeHtml(series[0].t)}</text>
+        <text class="chart-axis" x="${width}" y="${height + 14}" text-anchor="end">${escapeHtml(series[series.length - 1].t)}</text>
+    </svg>`;
+}
+
+function renderSpark() {
+    const spark = $('blockedSpark');
+    const values = (state.logs.series || []).map((point) => point.count);
+
+    if (values.length < 2) {
+        spark.innerHTML = '';
+        return;
+    }
+
+    const { line, area } = areaPath(values, 120, 32);
+    spark.setAttribute('viewBox', '0 0 120 32');
+    spark.innerHTML = `<defs>
+        <linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="var(--chart-1)" stop-opacity="0.4"/>
+            <stop offset="100%" stop-color="var(--chart-1)" stop-opacity="0"/>
+        </linearGradient>
+    </defs>
+    <path d="${area}" fill="url(#sparkFill)"/>
+    <path d="${line}" class="chart-line"/>`;
 }
 
 function renderDonut() {
@@ -374,19 +440,7 @@ function renderActivity() {
     $('activityRange').textContent = format(state.lines);
 
     $('portsMeta').textContent = state.filterIp ? `from ${state.filterIp}` : 'all sources';
-    const portList = $('topPorts');
-    if (portEntries.length === 0) {
-        portList.innerHTML = '<li class="empty">No blocked attempts in range.</li>';
-    } else {
-        const max = portEntries[0].count;
-        portList.innerHTML = portEntries.map(({ key, count }) => `<li>
-            <div class="rank">
-                <span class="rank-label"><strong class="mono">${escapeHtml(key)}</strong><span>${escapeHtml(portName(key) || 'unknown service')}</span></span>
-                <span class="rank-count">${format(count)}</span>
-                <span class="rank-bar"><span style="--w:${Math.max(4, Math.round((count / max) * 100))}%"></span></span>
-            </div>
-        </li>`).join('');
-    }
+    renderPortChart(portEntries);
     renderMore('portsMore', Object.keys(counts).length, state.showAllPorts, 'port');
 
     $('ipsMeta').textContent = `${Object.keys(state.logs.byIp).length} sources`;
@@ -407,6 +461,35 @@ function renderActivity() {
 
     renderFilterChip();
     renderRecent();
+}
+
+function renderPortChart(entries) {
+    const host = $('topPorts');
+
+    if (entries.length === 0) {
+        host.innerHTML = '<p class="empty">No blocked attempts in range.</p>';
+        return;
+    }
+
+    const width = 560;
+    const rowHeight = 34;
+    const barX = 132;
+    const barWidth = width - barX - 60;
+    const max = entries[0].count;
+
+    const rows = entries.map((entry, index) => {
+        const y = index * rowHeight;
+        const value = Math.max(3, Math.round((entry.count / max) * barWidth));
+        return `<g>
+            <text class="bar-label" x="0" y="${y + 13}">${escapeHtml(entry.key)}</text>
+            <text class="bar-sub" x="0" y="${y + 26}">${escapeHtml(portName(entry.key) || 'unknown service')}</text>
+            <rect class="bar-track" x="${barX}" y="${y + 8}" width="${barWidth}" height="10" rx="5"/>
+            <rect class="bar-fill" x="${barX}" y="${y + 8}" width="${value}" height="10" rx="5"><title>${escapeHtml(entry.key)} · ${format(entry.count)} blocked</title></rect>
+            <text class="bar-value" x="${width}" y="${y + 16}" text-anchor="end">${format(entry.count)}</text>
+        </g>`;
+    }).join('');
+
+    host.innerHTML = `<svg viewBox="0 0 ${width} ${entries.length * rowHeight}" class="bars" role="img" aria-label="Top targeted ports">${rows}</svg>`;
 }
 
 function renderMore(id, total, expanded, noun) {

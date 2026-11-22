@@ -170,6 +170,35 @@ export const donutSlices = (byPort = {}, limit = 5) => {
 };
 
 /**
+ * SVG paths for a filled area chart, scaled to a zero-based axis.
+ * The line is smoothed with control points at each pair's midpoint.
+ * @param {number[]} values
+ * @param {number} [width]
+ * @param {number} [height]
+ * @returns {{line: string, area: string, points: Array<{x: number, y: number}>}}
+ */
+export const areaPath = (values = [], width = 600, height = 140) => {
+    if (values.length === 0) return { line: '', area: '', points: [] };
+
+    const max = Math.max(...values, 1);
+    const step = values.length > 1 ? width / (values.length - 1) : 0;
+    const points = values.map((value, index) => ({
+        x: values.length > 1 ? index * step : width / 2,
+        y: height - (value / max) * (height - 6) - 3
+    }));
+
+    let line = `M${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+    for (let index = 1; index < points.length; index += 1) {
+        const previous = points[index - 1];
+        const point = points[index];
+        const midX = (previous.x + point.x) / 2;
+        line += ` C${midX.toFixed(1)} ${previous.y.toFixed(1)} ${midX.toFixed(1)} ${point.y.toFixed(1)} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`;
+    }
+
+    return { line, area: `${line} L${width} ${height} L0 ${height} Z`, points };
+};
+
+/**
  * Blocked attempts per protocol, highest first, with percentages.
  * @param {Object} byProto
  * @returns {Array<{name: string, count: number, percent: number}>}

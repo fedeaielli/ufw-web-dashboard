@@ -14,7 +14,8 @@ import {
     protocolStats,
     serviceCategories,
     distinctServices,
-    countsForIp
+    countsForIp,
+    areaPath
 } from '../../src/public/logic.js';
 
 describe('parseRuleTarget', () => {
@@ -200,5 +201,22 @@ describe('countsForIp', () => {
     it('falls back to all ports', () => {
         assert.deepEqual(countsForIp(logs, null), { '80': 3 });
         assert.deepEqual(countsForIp(logs, '9.9.9.9'), { '80': 3 });
+    });
+});
+
+describe('areaPath', () => {
+    it('returns nothing for empty data', () => {
+        assert.deepEqual(areaPath([]), { line: '', area: '', points: [] });
+    });
+
+    it('spreads points across the width and inverts the y axis', () => {
+        const { points, line, area } = areaPath([0, 10, 5], 100, 100);
+
+        assert.equal(points.length, 3);
+        assert.equal(points[0].x, 0);
+        assert.equal(points[2].x, 100);
+        assert.ok(points[1].y < points[0].y);
+        assert.ok(line.startsWith('M'));
+        assert.ok(area.endsWith('Z'));
     });
 });

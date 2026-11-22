@@ -66,6 +66,7 @@
           <p class="kpi-label">Blocked attempts</p>
           <p class="kpi-value" id="statBlocked">—</p>
           <p class="kpi-note" id="statBlockedNote">last log lines</p>
+          <svg class="spark" id="blockedSpark" aria-hidden="true"></svg>
         </article>
         <article class="kpi" data-tone="warn">
           <p class="kpi-label">Source IPs</p>
@@ -78,6 +79,16 @@
           <p class="kpi-note">ports hit by scans</p>
         </article>
       </div>
+
+      <article class="card">
+        <div class="card-head">
+          <h2>Blocked attempts over time</h2>
+          <span class="card-meta" id="trafficMeta">—</span>
+        </div>
+        <div class="card-body">
+          <div class="chart" id="trafficChart"></div>
+        </div>
+      </article>
 
       <div class="grid-2">
         <article class="card">
@@ -220,7 +231,7 @@
             <span class="card-meta" id="portsMeta">—</span>
           </div>
           <div class="card-body">
-            <ul class="rank-list" id="topPorts"></ul>
+            <div class="chart" id="topPorts"></div>
             <button class="btn ghost small more-btn" id="portsMore" type="button" hidden></button>
           </div>
         </article>
