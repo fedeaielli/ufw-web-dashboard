@@ -72,6 +72,39 @@ export const mergeRules = (rules = []) => {
     });
 };
 
+const PROTO_ORDER = { tcp: 0, udp: 1, any: 2 };
+
+const comparePort = (a, b) => {
+    const first = Number(a.port);
+    const second = Number(b.port);
+    if (Number.isFinite(first) && Number.isFinite(second) && first !== second) {
+        return first - second;
+    }
+    return a.port.localeCompare(b.port, undefined, { numeric: true });
+};
+
+const RULE_SORTERS = {
+    action: (a, b) => a.action.localeCompare(b.action),
+    protocol: (a, b) => (PROTO_ORDER[a.proto] ?? 3) - (PROTO_ORDER[b.proto] ?? 3),
+    port: comparePort
+};
+
+/**
+ * Sort merged rules by one column. Ties fall back to port, then protocol.
+ * @param {Array<Object>} groups
+ * @param {'port'|'action'|'protocol'} key
+ * @param {'asc'|'desc'} [direction]
+ * @returns {Array<Object>}
+ */
+export const sortRules = (groups = [], key = 'port', direction = 'asc') => {
+    const compare = RULE_SORTERS[key] || comparePort;
+    const sign = direction === 'desc' ? -1 : 1;
+
+    return [...groups].sort((a, b) =>
+        sign * compare(a, b) || comparePort(a, b) || a.proto.localeCompare(b.proto)
+    );
+};
+
 /**
  * "v4", "v6" or "v4 + v6" for a merged rule.
  * @param {{v4: boolean, v6: boolean}} group

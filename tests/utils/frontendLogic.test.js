@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
     parseRuleTarget,
     mergeRules,
+    sortRules,
     familyLabel,
     groupCounts,
     filterRecent,
@@ -59,6 +60,47 @@ describe('mergeRules', () => {
         ]);
 
         assert.deepEqual(merged.map((group) => group.port), ['22', '443']);
+    });
+});
+
+describe('sortRules', () => {
+    const rule = (port, proto, action = 'ALLOW IN') => ({ port, proto, action });
+    const groups = [
+        rule('443', 'tcp'),
+        rule('22', 'tcp', 'DENY IN'),
+        rule('80', 'any'),
+        rule('53', 'udp')
+    ];
+
+    it('sorts ports numerically in both directions', () => {
+        assert.deepEqual(sortRules(groups, 'port').map((group) => group.port), ['22', '53', '80', '443']);
+        assert.deepEqual(sortRules(groups, 'port', 'desc').map((group) => group.port), ['443', '80', '53', '22']);
+    });
+
+    it('sorts by action, then port', () => {
+        const order = (list) => list.map((group) => `${group.action}:${group.port}`);
+
+        assert.deepEqual(order(sortRules(groups, 'action')), [
+            'ALLOW IN:53', 'ALLOW IN:80', 'ALLOW IN:443', 'DENY IN:22'
+        ]);
+        assert.deepEqual(order(sortRules(groups, 'action', 'desc')), [
+            'DENY IN:22', 'ALLOW IN:53', 'ALLOW IN:80', 'ALLOW IN:443'
+        ]);
+    });
+
+    it('sorts protocols TCP, UDP, then both', () => {
+        assert.deepEqual(sortRules(groups, 'protocol').map((group) => group.proto), ['tcp', 'tcp', 'udp', 'any']);
+        assert.deepEqual(sortRules(groups, 'protocol', 'desc').map((group) => group.proto), ['any', 'udp', 'tcp', 'tcp']);
+    });
+
+    it('tie-breaks equal ports by protocol', () => {
+        const samePort = [rule('80', 'udp'), rule('80', 'tcp')];
+        assert.deepEqual(sortRules(samePort, 'port').map((group) => group.proto), ['tcp', 'udp']);
+    });
+
+    it('falls back to string order for port ranges', () => {
+        const ranges = [rule('2000:3000', 'tcp'), rule('1000:1500', 'tcp')];
+        assert.deepEqual(sortRules(ranges, 'port').map((group) => group.port), ['1000:1500', '2000:3000']);
     });
 });
 
