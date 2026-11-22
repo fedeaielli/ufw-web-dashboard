@@ -49,7 +49,7 @@ function StatusPill({ status }: { status: FirewallStatus | null }) {
   }[current.tone] || "bg-muted-foreground"
 
   return (
-    <Badge variant="outline" className="gap-2 rounded-full px-2.5 py-1 font-normal">
+    <Badge variant="outline" className="gap-2 rounded-full px-2.5 py-1 font-normal group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-lg group-data-[collapsible=icon]:border-transparent group-data-[collapsible=icon]:px-0">
       <motion.span
         key={current.tone}
         initial={{ opacity: 0, scale: reduce ? 1 : 0.6 }}
@@ -58,7 +58,7 @@ function StatusPill({ status }: { status: FirewallStatus | null }) {
         className={`size-1.5 rounded-full ${dot}`}
         aria-hidden="true"
       />
-      <span className="num">{current.label}</span>
+      <span className="num group-data-[collapsible=icon]:hidden">{current.label}</span>
     </Badge>
   )
 }
@@ -184,8 +184,7 @@ export function AppShell({ tab, onTab, dashboard, children }: ShellProps) {
             <ModeToggle />
             <Button
               variant="ghost"
-              size="icon"
-              className="size-9"
+              size="icon-sm"
               aria-label="Sign out"
               onClick={() => {
                 void mutate("/logout", "POST")
