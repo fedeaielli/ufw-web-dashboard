@@ -11,10 +11,10 @@ import { createHash } from 'crypto';
  * @returns {string} Client IP address
  */
 export const getClientIp = (req) => {
-    return req.headers['x-forwarded-for']?.split(',')[0]?.trim() 
-        || req.headers['x-real-ip'] 
-        || req.socket.remoteAddress?.replace('::ffff:', '')
-        || 'unknown';
+    // req.ip honours the app's trust proxy setting; forwarding headers are only
+    // read by Express when the socket itself is a trusted (loopback) proxy.
+    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+    return ip.replace(/^::ffff:/, '');
 };
 
 /**

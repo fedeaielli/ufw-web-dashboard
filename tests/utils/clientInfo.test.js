@@ -4,23 +4,27 @@ import { getClientIp, getClientFingerprint, getClientInfo } from '../../src/util
 
 describe('Client Info Utils', () => {
     describe('getClientIp', () => {
-        it('should extract IP from x-forwarded-for', () => {
+        it('should use req.ip and ignore spoofed forwarding headers', () => {
             const req = {
-                headers: { 'x-forwarded-for': '1.2.3.4, 5.6.7.8' },
-                socket: {}
+                ip: '203.0.113.7',
+                headers: {
+                    'x-forwarded-for': '1.2.3.4',
+                    'x-real-ip': '9.8.7.6'
+                },
+                socket: { remoteAddress: '127.0.0.1' }
             };
-            assert.equal(getClientIp(req), '1.2.3.4');
+            assert.equal(getClientIp(req), '203.0.113.7');
         });
 
-        it('should extract IP from x-real-ip', () => {
+        it('should fall back to socket.remoteAddress when req.ip is missing', () => {
             const req = {
-                headers: { 'x-real-ip': '9.8.7.6' },
-                socket: {}
+                headers: {},
+                socket: { remoteAddress: '127.0.0.1' }
             };
-            assert.equal(getClientIp(req), '9.8.7.6');
+            assert.equal(getClientIp(req), '127.0.0.1');
         });
 
-        it('should extract IP from socket.remoteAddress', () => {
+        it('should strip the IPv4-mapped IPv6 prefix', () => {
             const req = {
                 headers: {},
                 socket: { remoteAddress: '::ffff:127.0.0.1' }
