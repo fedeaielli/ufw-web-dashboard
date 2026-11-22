@@ -72,4 +72,12 @@ describe('aggregateLogLines', () => {
         assert.equal(result.series[0].t, '18:48:33');
         assert.equal(result.total, 1);
     });
+
+    it('ignores malformed lines without crashing', () => {
+        const result = aggregateLogLines(['garbage without fields', privateLine]);
+
+        assert.deepEqual(result.byPort, { '32903': 1 });
+        assert.equal(result.series.length, 1);
+        assert.equal(result.total, 2);
+    });
 });

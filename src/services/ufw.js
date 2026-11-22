@@ -27,33 +27,42 @@ const runCommand = (cmd) => {
 };
 
 /**
+ * Parse the raw output of `ufw status numbered`.
+ * @param {string} raw
+ * @returns {{status: string, rules: Array}}
+ */
+export const parseUfwStatus = (raw) => {
+    const lines = raw.split('\n');
+    
+    let status = 'inactive';
+    if (lines[0]?.includes('Status: active')) status = 'active';
+
+    const rules = [];
+    const regex = /^\[\s*(\d+)\]\s+(.*?)\s+(ALLOW IN|DENY IN|REJECT IN|ALLOW OUT|DENY OUT)\s+(.*)$/;
+
+    for (const line of lines) {
+        const match = line.match(regex);
+        if (match) {
+            rules.push({
+                id: match[1],
+                to: match[2].trim(),
+                action: match[3].trim(),
+                from: match[4].trim()
+            });
+        }
+    }
+
+    return { status, rules };
+};
+
+/**
  * Get UFW status and rules
  * @returns {Promise<{status: string, rules: Array, error?: string}>}
  */
 export const getStatus = async () => {
     try {
         const raw = await runCommand('ufw status numbered');
-        const lines = raw.split('\n');
-        
-        let status = 'inactive';
-        if (lines[0]?.includes('Status: active')) status = 'active';
-
-        const rules = [];
-        const regex = /^\[\s*(\d+)\]\s+(.*?)\s+(ALLOW IN|DENY IN|REJECT IN|ALLOW OUT|DENY OUT)\s+(.*)$/;
-
-        for (const line of lines) {
-            const match = line.match(regex);
-            if (match) {
-                rules.push({
-                    id: match[1],
-                    to: match[2].trim(),
-                    action: match[3].trim(),
-                    from: match[4].trim()
-                });
-            }
-        }
-
-        return { status, rules };
+        return parseUfwStatus(raw);
     } catch (e) {
         const errorMsg = e.toString().toLowerCase();
         

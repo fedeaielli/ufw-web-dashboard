@@ -172,4 +172,12 @@ describe('API integration', () => {
         });
         assert.equal(res.status, 403);
     });
+
+    it('serves /health with security headers', async () => {
+        const res = await fetch(`${base}/health`);
+
+        assert.equal(res.status, 200);
+        assert.equal(res.headers.get('x-content-type-options'), 'nosniff');
+        assert.match(res.headers.get('content-security-policy'), /default-src 'self'/);
+    });
 });
