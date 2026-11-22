@@ -142,10 +142,8 @@ export function AppShell({ tab, onTab, dashboard, children }: ShellProps) {
     <>
       <Sidebar collapsible="icon">
         <SidebarHeader>
-          <div className="flex h-14 items-center gap-2.5 px-2">
-            <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
-              <ShieldCheck className="size-4" strokeWidth={1.5} aria-hidden="true" />
-            </span>
+          <div className="flex h-14 items-center gap-2 px-2">
+            <ShieldCheck className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.5} aria-hidden="true" />
             <div className="grid min-w-0 leading-tight group-data-[collapsible=icon]:hidden">
               <span className="truncate text-sm font-semibold">Firewall</span>
               <span className="truncate text-[11px] font-medium text-faint">UFW console</span>
