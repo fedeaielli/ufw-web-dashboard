@@ -68,6 +68,26 @@ export const timeSeries = (times = [], bins = 24) => {
 };
 
 /**
+ * True only for a public IPv4 address. Private, loopback, link-local, CGNAT,
+ * multicast and every IPv6 source count as internal.
+ * @param {string} ip
+ * @returns {boolean}
+ */
+export const isExternal = (ip) => {
+    if (!/^\d+\.\d+\.\d+\.\d+$/.test(ip || '')) return false;
+
+    const [a, b] = ip.split('.').map(Number);
+    if (a === 0 || a === 10 || a === 127) return false;
+    if (a === 100 && b >= 64 && b <= 127) return false;
+    if (a === 169 && b === 254) return false;
+    if (a === 172 && b >= 16 && b <= 31) return false;
+    if (a === 192 && b === 168) return false;
+    if (a >= 224) return false;
+
+    return true;
+};
+
+/**
  * Parse UFW logs and aggregate blocked connections
  * @param {number} lines - Number of log lines to parse
  * @returns {Promise<{byPort: Object, byProto: Object, byIp: Object, ipPorts: Object, recent: Array, series: Array, total: number}>}
@@ -106,7 +126,6 @@ export const getBlockedStats = async (lines = config.logs.maxLines) => {
             const srcRegex = /SRC=([0-9a-fA-F.:]+)/;
             const timeRegex = /^(\w+\s+\d+\s+[\d:]+)/;
             const protoRegex = /PROTO=(\w+)/;
-            const ipv4Regex = /^\d+\.\d+\.\d+\.\d+$/;
             
             for (const line of logLines) {
                 const dptMatch = line.match(dptRegex);
@@ -116,10 +135,11 @@ export const getBlockedStats = async (lines = config.logs.maxLines) => {
                 const port = dptMatch ? dptMatch[1] : null;
                 const ip = srcMatch ? srcMatch[1] : null;
                 const protoMatch = line.match(protoRegex);
+                const external = isExternal(ip);
 
                 if (timeMatch) times.push(timeMatch[1]);
 
-                if (port) {
+                if (external && port) {
                     byPort[port] = (byPort[port] || 0) + 1;
                     if (protoMatch) {
                         const proto = protoMatch[1].toUpperCase();
@@ -127,11 +147,7 @@ export const getBlockedStats = async (lines = config.logs.maxLines) => {
                     }
                 }
                 
-                // Only count real IPv4 addresses (ignore local/multicast/IPv6)
-                const isExternalIp = ip && ipv4Regex.test(ip) && 
-                    !ip.startsWith('192.168.') && !ip.startsWith('10.') && !ip.startsWith('127.');
-                
-                if (isExternalIp) {
+                if (external) {
                     byIp[ip] = (byIp[ip] || 0) + 1;
                     
                     // Track ports per IP
@@ -142,7 +158,7 @@ export const getBlockedStats = async (lines = config.logs.maxLines) => {
                 }
                 
                 // Collect recent entries (only external IPs with ports)
-                if (isExternalIp && port) {
+                if (external && port) {
                     if (protoMatch) {
                         recent.push({
                             time: timeMatch ? timeMatch[1] : 'Unknown',
