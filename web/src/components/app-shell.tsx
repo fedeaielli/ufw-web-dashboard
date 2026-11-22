@@ -142,9 +142,9 @@ export function AppShell({ tab, onTab, dashboard, children }: ShellProps) {
     <>
       <Sidebar collapsible="icon">
         <SidebarHeader>
-          <div className="flex h-14 items-center gap-2.5 px-1">
+          <div className="flex h-14 items-center gap-2.5 px-2">
             <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
-              <ShieldCheck className="size-4" aria-hidden="true" />
+              <ShieldCheck className="size-4" strokeWidth={1.5} aria-hidden="true" />
             </span>
             <div className="grid min-w-0 leading-tight group-data-[collapsible=icon]:hidden">
               <span className="truncate text-sm font-semibold">Firewall</span>
@@ -155,7 +155,7 @@ export function AppShell({ tab, onTab, dashboard, children }: ShellProps) {
         <SidebarContent>
           <SidebarGroup>
             <SidebarGroupLabel>Monitor</SidebarGroupLabel>
-            <SidebarGroupContent>
+            <SidebarGroupContent className="mt-2">
               <SidebarMenu>
                 {NAV.map((item) => (
                   <SidebarMenuItem key={item.name}>
@@ -164,7 +164,7 @@ export function AppShell({ tab, onTab, dashboard, children }: ShellProps) {
                       onClick={() => onTab(item.name)}
                       tooltip={item.label}
                     >
-                      <item.icon className="size-4" />
+                      <item.icon className="size-4" strokeWidth={1.5} />
                       <span>{item.label}</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -174,13 +174,13 @@ export function AppShell({ tab, onTab, dashboard, children }: ShellProps) {
           </SidebarGroup>
         </SidebarContent>
         <SidebarFooter>
-          <div className="flex items-center gap-2 px-1 group-data-[collapsible=icon]:justify-center">
+          <div className="flex items-center gap-2 px-2 group-data-[collapsible=icon]:justify-center">
             <StatusPill status={status} />
             <span className="text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
               {format(openRules)} open
             </span>
           </div>
-          <div className="flex items-center gap-1 group-data-[collapsible=icon]:flex-col">
+          <div className="flex items-center gap-1 px-2 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:px-0">
             <ModeToggle />
             <Button
               variant="ghost"
@@ -193,7 +193,7 @@ export function AppShell({ tab, onTab, dashboard, children }: ShellProps) {
                   .finally(() => { window.location.href = "/login" })
               }}
             >
-              <LogOut className="size-4" />
+              <LogOut className="size-4" strokeWidth={1.5} />
             </Button>
           </div>
         </SidebarFooter>

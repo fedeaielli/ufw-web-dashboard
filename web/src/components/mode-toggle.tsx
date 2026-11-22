@@ -24,7 +24,9 @@ export function ModeToggle() {
         transition={reduce ? { duration: 0.15 } : SPRING}
         className="grid place-items-center"
       >
-        {dark ? <Moon className="size-4" /> : <Sun className="size-4" />}
+        {dark
+          ? <Moon className="size-4" strokeWidth={1.5} />
+          : <Sun className="size-4" strokeWidth={1.5} />}
       </motion.span>
     </Button>
   )
