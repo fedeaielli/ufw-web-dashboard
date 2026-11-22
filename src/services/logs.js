@@ -49,7 +49,7 @@ const cache = new LogCache(config.logs.maxCacheSize, config.logs.cacheTtl);
 /**
  * Parse UFW logs and aggregate blocked connections
  * @param {number} lines - Number of log lines to parse
- * @returns {Promise<{byPort: Object, byIp: Object, ipPorts: Object, recent: Array, total: number}>}
+ * @returns {Promise<{byPort: Object, byProto: Object, byIp: Object, ipPorts: Object, recent: Array, total: number}>}
  */
 export const getBlockedStats = async (lines = config.logs.maxLines) => {
     const safeLines = sanitizeLogLines(lines, config.logs.maxLines);
@@ -67,11 +67,12 @@ export const getBlockedStats = async (lines = config.logs.maxLines) => {
         const maxBuffer = 10 * 1024 * 1024; // 10MB
         exec(`tail -${safeLines} /var/log/ufw.log 2>/dev/null | grep "UFW BLOCK"`, { maxBuffer }, (error, stdout) => {
             if (error || !stdout) {
-                const emptyResult = { byPort: {}, byIp: {}, ipPorts: {}, recent: [], total: 0 };
+                const emptyResult = { byPort: {}, byProto: {}, byIp: {}, ipPorts: {}, recent: [], total: 0 };
                 return resolve(emptyResult);
             }
 
             const byPort = {};
+            const byProto = {};
             const byIp = {};
             const ipPorts = {}; // Track which ports each IP targeted
             const recent = [];
@@ -91,9 +92,14 @@ export const getBlockedStats = async (lines = config.logs.maxLines) => {
                 
                 const port = dptMatch ? dptMatch[1] : null;
                 const ip = srcMatch ? srcMatch[1] : null;
-                
+                const protoMatch = line.match(protoRegex);
+
                 if (port) {
                     byPort[port] = (byPort[port] || 0) + 1;
+                    if (protoMatch) {
+                        const proto = protoMatch[1].toUpperCase();
+                        byProto[proto] = (byProto[proto] || 0) + 1;
+                    }
                 }
                 
                 // Only count real IPv4 addresses (ignore local/multicast/IPv6)
@@ -112,7 +118,6 @@ export const getBlockedStats = async (lines = config.logs.maxLines) => {
                 
                 // Collect recent entries (only external IPs with ports)
                 if (isExternalIp && port) {
-                    const protoMatch = line.match(protoRegex);
                     const timeMatch = line.match(timeRegex);
                     
                     if (protoMatch) {
@@ -138,8 +143,15 @@ export const getBlockedStats = async (lines = config.logs.maxLines) => {
                 .sort((a, b) => b[1] - a[1])
                 .forEach(([k, v]) => { sortedIps[k] = v; });
 
+            // Sort protocols by count - optimized without spread operator
+            const sortedProtos = {};
+            Object.entries(byProto)
+                .sort((a, b) => b[1] - a[1])
+                .forEach(([k, v]) => { sortedProtos[k] = v; });
+
             const result = {
                 byPort: sortedPorts,
+                byProto: sortedProtos,
                 byIp: sortedIps,
                 ipPorts: ipPorts,
                 recent: recent.slice(-15).reverse(), // Last 15, most recent first
