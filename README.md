@@ -1,66 +1,56 @@
 # UFW Web Dashboard
 
-A simple web interface to monitor and manage your UFW firewall. View blocked connections, manage rules, and analyze attack patterns in real-time.
+A self-hosted web interface to monitor and manage your UFW firewall: see blocked connections, allow ports, remove rules and enable/disable the firewall from one page.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)
 
-![Dashboard Screenshot](assets/screenshot.png)
-
 ## Features
 
-- Real-time monitoring of blocked connection attempts
-- Visual analytics with charts and graphs
-- Manage firewall rules (add/remove ports)
+- One-page dashboard: firewall status, open ports, blocked activity
+- Add allow rules, remove rules, enable/disable the firewall
+- Blocked attempts grouped by targeted port and source IP, filterable by IP
 - IPv4 and IPv6 support
-- Analyze attack patterns by port, IP, and protocol
-- Secure authentication and CSRF protection
-- Clean, responsive interface
+- Login page with cookie sessions, CSRF protection and rate limiting
+- Optional Docker image that manages the host firewall
 
 ## Requirements
 
 - Node.js >= 18.0.0
-- UFW (Uncomplicated Firewall)
-- Linux system with sudo access
+- UFW (Uncomplicated Firewall) and a Linux system with root/sudo access
 
 ## Installation
 
-1. Clone the repository
-   ```bash
-   git clone https://github.com/bob6664569/ufw-web-dashboard.git
-   cd ufw-web-dashboard
-   ```
+```bash
+git clone https://github.com/bob6664569/ufw-web-dashboard.git
+cd ufw-web-dashboard
+npm ci
+cp .env.example .env
+nano .env                 # set F_USER and F_PASS
+sudo npm start
+```
 
-2. Install dependencies
-   ```bash
-   npm install
-   ```
+Open `http://localhost:3300` and sign in with the credentials from `.env`.
 
-3. Configure environment
-   ```bash
-   cp .env.example .env
-   nano .env
-   ```
+## Run with Docker
 
-   Set your credentials in `.env`:
-   ```env
-   PORT=3300
-   HOST=0.0.0.0
-   
-   # Change these!
-   F_USER=admin
-   F_PASS=your-secure-password
-   
-   LOG_MAX_LINES=10000
-   LOG_DEFAULT_LINES=1000
-   ```
+```bash
+cp .env.example .env
+nano .env                 # set F_USER and F_PASS
+docker compose up -d --build
+```
 
-4. Start the server
-   ```bash
-   sudo npm start
-   ```
+The container uses `network_mode: host` and `NET_ADMIN` because it manages the **host** firewall. It also needs:
 
-5. Open `http://localhost:3300` in your browser
+- `/etc/ufw` mounted read-write (rules live here)
+- `/etc/default/ufw` and `/var/log/ufw.log` mounted read-only
+- the same iptables backend as the host (nftables on Debian/Ubuntu 22.04+)
+
+Notes:
+
+- The container runs as root, which `ufw` requires. Anyone who can sign in can change the host firewall: keep `HOST=127.0.0.1` and put a reverse proxy with HTTPS in front for remote access.
+- Sessions are kept in memory, so restarting the container signs everyone out.
+- The healthcheck calls the public `/health` endpoint.
 
 ## Configuration
 
@@ -69,14 +59,15 @@ A simple web interface to monitor and manage your UFW firewall. View blocked con
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `3300` | Server port |
-| `HOST` | `127.0.0.1` | Server host |
+| `HOST` | `127.0.0.1` | Bind address |
 | `NODE_ENV` | `production` | Environment (production/development) |
-| `F_USER` | *required* | Username for authentication |
-| `F_PASS` | *required* | Password for authentication |
-| `AUTH_MAX_FAILED_ATTEMPTS` | `5` | Max failed auth attempts before blocking |
+| `F_USER` | *required* | Login username |
+| `F_PASS` | *required* | Login password |
+| `AUTH_MAX_FAILED_ATTEMPTS` | `5` | Failed logins before the IP is blocked |
 | `AUTH_BLOCK_DURATION` | `900000` | Block duration in ms (15 min) |
+| `SESSION_TTL` | `43200000` | Session idle timeout in ms (12 h) |
 | `LOG_MAX_LINES` | `10000` | Max log lines to parse |
-| `LOG_DEFAULT_LINES` | `1000` | Default lines to display |
+| `LOG_DEFAULT_LINES` | `1000` | Default lines to analyse |
 | `LOG_CACHE_TTL` | `5000` | Cache TTL in ms (5 sec) |
 | `LOG_MAX_CACHE_SIZE` | `10` | Max cache entries |
 | `RATE_LIMIT_MAX_REQUESTS` | `100` | Max requests per window |
@@ -86,8 +77,6 @@ A simple web interface to monitor and manage your UFW firewall. View blocked con
 | `MIN_USERNAME_LENGTH` | `4` | Minimum username length |
 
 ### UFW Setup
-
-Make sure UFW is installed and logging is enabled:
 
 ```bash
 sudo apt install ufw
@@ -99,48 +88,60 @@ sudo ufw status
 ## Testing
 
 ```bash
-npm test              # Run all tests (node:test native, zero dependencies)
+npm test              # Unit and security tests (node:test, no dependencies)
 npm run test:unit     # Unit tests only
 npm run test:security # Security tests
 ```
 
+Integration tests (`npm run test:integration`) expect a running server on `127.0.0.1:3300` and are skipped by default.
+
 ## Security
 
-Basic security measures are in place (authentication, CSRF protection, rate limiting). For production use, put it behind a reverse proxy with HTTPS and restrict access to trusted IPs.
+- Login page with an HttpOnly, SameSite=Strict session cookie (12 h idle timeout)
+- CSRF tokens on every mutation, bound to the client fingerprint
+- Timing-safe credential comparison
+- Failed-login blocking per IP and a general request rate limit
+- Strict Content Security Policy; no CDN or third-party assets
+
+Put the app behind a reverse proxy with HTTPS and restrict access to trusted IPs for production use.
 
 ## Project Structure
 
 ```
 ufw-web-dashboard/
-├── index.js                 # Entry point
+├── index.js                 # Entry point and middleware wiring
 ├── src/
-│   ├── config.js           # Centralized configuration
-│   ├── middleware/         # Auth, CSRF, rate limiting, security, validation
-│   ├── routes/             # API endpoints (logs, rules, health)
-│   ├── services/           # UFW and log parsing logic
-│   ├── utils/              # Logger, error handler, validation, audit, client info
-│   └── views/
-│       └── index.html      # Frontend (Alpine.js + Tailwind CSS)
+│   ├── config.js            # Centralized configuration
+│   ├── middleware/          # Session, CSRF, rate limiting, security, validation
+│   ├── routes/              # Login/logout and API endpoints
+│   ├── services/            # UFW and log parsing logic
+│   ├── utils/               # Logger, error handler, validation, audit, client info
+│   ├── public/              # app.css, app.js, logic.js, login.js
+│   └── views/               # index.html, login.html
+├── Dockerfile
+├── docker-compose.yml
 ├── .env.example
 └── package.json
 ```
 
 ## API Endpoints
 
-- `GET /` - Dashboard interface
-- `GET /health` - Health check (no auth required)
-- `GET /api/whoami` - Get your IP address
-- `GET /api/rules` - List firewall rules
-- `POST /api/rules` - Add a firewall rule
-- `DELETE /api/rules/:id` - Remove a rule
-- `GET /api/logs` - Get blocked attempts stats
-- `POST /api/rules/enable` - Enable UFW
-- `POST /api/rules/disable` - Disable UFW
-- `GET /api/csrf-token` - Get CSRF token
+All `/api/*` endpoints require a session cookie. Mutations also require an `X-CSRF-Token` header.
 
-## Contributing
-
-Pull requests are welcome. For major changes, please open an issue first.
+| Endpoint | Description |
+|----------|-------------|
+| `GET /login` | Login page |
+| `POST /login` | Sign in (form-encoded) |
+| `POST /logout` | Sign out |
+| `GET /health` | Health check (public) |
+| `GET /api/whoami` | Client IP |
+| `GET /api/csrf-token` | One-time CSRF token |
+| `GET /api/rules` | Firewall status and rules |
+| `POST /api/rules` | Add a rule (`port`, `protocol`, `type`, `source`) |
+| `DELETE /api/rules/:id` | Remove a rule by id |
+| `POST /api/rules/enable` | Enable UFW |
+| `POST /api/rules/disable` | Disable UFW |
+| `GET /api/logs?lines=N` | Blocked attempts statistics |
 
 ## License
 
@@ -157,6 +158,5 @@ Mostly written by an AI (Claude via Cursor) while the human occasionally nodded 
 ## Tech Stack
 
 - Express.js
-- Alpine.js
-- Tailwind CSS
-- Chart.js
+- Vanilla JavaScript, HTML and CSS (no build step, no CDN)
+- Node.js `node:test`

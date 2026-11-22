@@ -1,0 +1,14 @@
+services:
+  ufw-dashboard:
+    build: .
+    container_name: ufw-dashboard
+    restart: unless-stopped
+    # Host networking is required: ufw edits the host firewall.
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+    env_file: .env
+    volumes:
+      - /etc/ufw:/etc/ufw
+      - /etc/default/ufw:/etc/default/ufw:ro
+      - /var/log/ufw.log:/var/log/ufw.log:ro
