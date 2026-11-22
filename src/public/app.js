@@ -266,9 +266,17 @@ function confirmAction({ title, body, label, danger = false }) {
         ok.textContent = label;
         ok.className = `btn ${danger ? 'danger' : 'primary'}`;
 
-        ok.onclick = () => { dialog.close(); resolve(true); };
-        $('confirmCancel').onclick = () => { dialog.close(); resolve(false); };
+        ok.onclick = () => dialog.close('confirm');
+        $('confirmCancel').onclick = () => dialog.close('cancel');
 
+        // Also resolves on Escape, which closes the dialog without a value
+        const onClose = () => {
+            dialog.removeEventListener('close', onClose);
+            resolve(dialog.returnValue === 'confirm');
+        };
+        dialog.addEventListener('close', onClose);
+
+        dialog.returnValue = '';
         dialog.showModal();
     });
 }
