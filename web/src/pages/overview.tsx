@@ -18,11 +18,8 @@ const COLORS = [
   "var(--chart-4)", "var(--chart-5)", "var(--faint)",
 ]
 
-const RANGE_COLORS: Record<string, string> = {
-  "well-known": "var(--chart-1)",
-  registered: "var(--chart-3)",
-  ephemeral: "var(--chart-4)",
-}
+/** The leading range carries the accent; the rest stay in neutral steps. */
+const RANGE_COLORS = ["var(--chart-1)", "var(--chart-3)", "var(--chart-4)"]
 
 function Empty({ children }: { children: ReactNode }) {
   return <p className="py-8 text-center text-sm text-muted-foreground">{children}</p>
@@ -117,20 +114,20 @@ export function OverviewPage({ dashboard, onTab }: Props) {
           <CardContent>
             {portsTotal === 0 ? <Empty>No blocked attempts in range.</Empty> : (
               <div className="flex flex-col items-center gap-4 lg:flex-row">
-                <PieChart data={ranges.map((range) => ({
+                <PieChart data={ranges.map((range, index) => ({
                   label: range.label,
                   value: range.count,
-                  color: RANGE_COLORS[range.key],
+                  color: RANGE_COLORS[index],
                 }))} innerRadius={52} padAngle={0.02} size={168} enterTransition={SPRING} enterStaggerScale={0} className="shrink-0">
                   {ranges.map((range, index) => (
-                    <PieSlice key={range.key} index={index} color={RANGE_COLORS[range.key]} />
+                    <PieSlice key={range.key} index={index} color={RANGE_COLORS[index]} />
                   ))}
                   <PieCenter defaultLabel="blocked" />
                 </PieChart>
                 <ul className="grid w-full gap-2 text-xs">
-                  {ranges.map((range) => (
+                  {ranges.map((range, index) => (
                     <li key={range.key} className="grid grid-cols-[8px_1fr_auto_auto] items-center gap-3">
-                      <span className="size-2 rounded-full" style={{ background: RANGE_COLORS[range.key] }} />
+                      <span className="size-2 rounded-full" style={{ background: RANGE_COLORS[index] }} />
                       <span className="min-w-0 truncate font-medium">{range.label}</span>
                       <span className="num text-muted-foreground">{format(range.count)}</span>
                       <span className="num w-8 text-right text-faint">{range.percent}%</span>
