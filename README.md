@@ -7,9 +7,11 @@ A self-hosted web interface to monitor and manage your UFW firewall: see blocked
 
 ## Features
 
-- One-page dashboard: firewall status, open ports, blocked activity
-- Add allow rules, remove rules, enable/disable the firewall
-- Blocked attempts grouped by targeted port and source IP, filterable by IP
+- Instrument-panel dashboard with four tabs: Overview, Rules, Activity and Settings
+- Overview: open-port, blocked-attempt, source-IP and targeted-port KPIs, targeted-port donut, TCP/UDP/ICMP breakdown, top sources and service categories
+- Add allow or deny rules (TCP, UDP or both), remove rules, enable/disable the firewall
+- Activity: blocked attempts grouped by targeted port and source IP, filter by source, expandable rankings and the latest 15 connections
+- Settings: choose how many log lines to analyse
 - IPv4 and IPv6 support
 - Login page with cookie sessions, CSRF protection and rate limiting
 - Optional Docker image that manages the host firewall
@@ -137,11 +139,11 @@ All `/api/*` endpoints require a session cookie. Mutations also require an `X-CS
 | `GET /api/whoami` | Client IP |
 | `GET /api/csrf-token` | One-time CSRF token |
 | `GET /api/rules` | Firewall status and rules |
-| `POST /api/rules` | Add a rule (`port`, `protocol`, `type`, `source`) |
+| `POST /api/rules` | Add a rule (`port`, `protocol` = `tcp`/`udp`/`both`, `type` = `allow`/`deny`, `source`) |
 | `DELETE /api/rules/:id` | Remove a rule by id |
 | `POST /api/rules/enable` | Enable UFW |
 | `POST /api/rules/disable` | Disable UFW |
-| `GET /api/logs?lines=N` | Blocked attempts statistics |
+| `GET /api/logs?lines=N` | Blocked-attempt statistics (`byPort`, `byProto`, `byIp`, `ipPorts`, `recent`) |
 
 ## License
 
