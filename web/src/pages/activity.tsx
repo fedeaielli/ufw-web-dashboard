@@ -5,12 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { BarChart } from "@/components/charts/bar-chart"
-import { Bar } from "@/components/charts/bar"
-import { BarYAxis } from "@/components/charts/bar-y-axis"
-import { Grid } from "@/components/charts/grid"
 import { countsForIp, filterRecent, format, groupCounts, portName } from "@/lib/logic"
-import { SPRING } from "@/lib/motion"
 import type { Dashboard } from "@/hooks/use-dashboard"
 import type { TabName } from "@/lib/types"
 
@@ -25,7 +20,6 @@ export function ActivityPage({ dashboard, onTab }: { dashboard: Dashboard; onTab
   const portEntries = groupCounts(counts, showAllPorts ? Infinity : LIMIT)
   const ipEntries = groupCounts(logs.byIp, showAllIps ? Infinity : LIMIT)
   const recent = filterRecent(logs.recent, filterIp)
-  const chartData = portEntries.map((entry) => ({ name: entry.key, count: entry.count }))
 
   const refresh = () => {
     void refreshLogs().then(() => toast.success("Activity refreshed")).catch((error) => toast.error(error.message))
@@ -56,14 +50,25 @@ export function ActivityPage({ dashboard, onTab }: { dashboard: Dashboard; onTab
             <span className="text-xs text-muted-foreground">{filterIp ? `from ${filterIp}` : "all sources"}</span>
           </CardHeader>
           <CardContent>
-            {chartData.length === 0 ? (
+            {portEntries.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">No blocked attempts in range.</p>
             ) : (
-              <BarChart data={chartData} xDataKey="name" orientation="horizontal" aspectRatio="2 / 1" animationDuration={300} enterTransition={SPRING} margin={{ top: 8, right: 40, bottom: 8, left: 72 }}>
-                <Grid horizontal={false} vertical />
-                <Bar dataKey="count" fill="var(--chart-1)" staggerDelay={0} />
-                <BarYAxis />
-              </BarChart>
+              <div className={showAllPorts ? "max-h-80 overflow-y-auto pr-1" : ""}>
+                <ul className="grid gap-1">
+                  {portEntries.map(({ key, count }, index) => (
+                    <li key={key} className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1 rounded-lg px-2 py-1.5">
+                      <span className="num truncate text-xs font-medium">{key}</span>
+                      <span className="num text-xs text-muted-foreground">{format(count)}</span>
+                      <span className="col-span-2 h-1 overflow-hidden rounded-full bg-secondary">
+                        <span
+                          className={`block h-full rounded-full ${index === 0 ? "bg-primary" : "bg-foreground/20"}`}
+                          style={{ width: `${Math.max(4, Math.round((count / portEntries[0].count) * 100))}%` }}
+                        />
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
             {Object.keys(counts).length > LIMIT && (
               <Button variant="ghost" size="sm" className="mt-2" onClick={() => setShowAllPorts((value) => !value)}>
