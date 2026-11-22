@@ -25,12 +25,13 @@ describe('mergeRules', () => {
     it('merges the IPv4 and IPv6 entries of the same rule', () => {
         const merged = mergeRules([
             { id: '1', to: '22/tcp', action: 'ALLOW IN', from: 'Anywhere' },
-            { id: '2', to: '22/tcp (v6)', action: 'ALLOW IN', from: 'Anywhere' },
+            { id: '2', to: '22/tcp (v6)', action: 'ALLOW IN', from: 'Anywhere (v6)' },
             { id: '3', to: '80', action: 'ALLOW IN', from: 'Anywhere' }
         ]);
 
         assert.equal(merged.length, 2);
         assert.deepEqual(merged[0].ids, ['1', '2']);
+        assert.equal(merged[0].from, 'Anywhere');
         assert.equal(familyLabel(merged[0]), 'v4 + v6');
         assert.equal(familyLabel(merged[1]), 'v4');
     });

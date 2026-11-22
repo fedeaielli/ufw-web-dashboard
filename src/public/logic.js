@@ -44,7 +44,9 @@ export const mergeRules = (rules = []) => {
 
     for (const rule of rules) {
         const { port, proto, v6 } = parseRuleTarget(rule.to);
-        const key = [port, proto, rule.action, rule.from].join('|');
+        // ufw prints "Anywhere (v6)" as the source of IPv6 rules
+        const from = rule.from.replace('(v6)', '').trim();
+        const key = [port, proto, rule.action, from].join('|');
 
         if (!groups.has(key)) {
             groups.set(key, {
@@ -52,7 +54,7 @@ export const mergeRules = (rules = []) => {
                 port,
                 proto,
                 action: rule.action,
-                from: rule.from,
+                from,
                 v4: false,
                 v6: false,
                 ids: []

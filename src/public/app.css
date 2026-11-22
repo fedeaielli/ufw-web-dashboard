@@ -61,6 +61,8 @@ code, .mono {
   border: 0;
 }
 
+[hidden] { display: none !important; }
+
 :focus-visible {
   outline: 2px solid var(--muted);
   outline-offset: 2px;
@@ -444,7 +446,6 @@ button.list-item[aria-pressed="true"] { background: var(--surface-2); }
   height: 100%;
   background: var(--danger);
   border-radius: 2px;
-  transition: width 200ms var(--ease-out);
 }
 
 .filter-chip {
