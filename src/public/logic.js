@@ -99,3 +99,108 @@ export const groupCounts = (counts = {}, limit = 5) =>
  */
 export const filterRecent = (recent = [], ip = null) =>
     ip ? recent.filter((entry) => entry.src === ip) : recent;
+
+/**
+ * Human label for a rule protocol. ufw prints "any" when no proto is set.
+ * @param {string} proto
+ * @returns {string}
+ */
+export const protocolLabel = (proto = 'any') =>
+    proto === 'any' || !proto ? 'TCP + UDP' : proto.toUpperCase();
+
+/**
+ * Top targeted ports for the donut: top N plus an "Other" slice.
+ * @param {Object} byPort
+ * @param {number} [limit]
+ * @returns {{total: number, slices: Array<{key: string, count: number, percent: number}>}}
+ */
+export const donutSlices = (byPort = {}, limit = 5) => {
+    const total = Object.values(byPort).reduce((sum, count) => sum + count, 0);
+    if (total === 0) return { total: 0, slices: [] };
+
+    const top = groupCounts(byPort, limit);
+    const shown = top.reduce((sum, entry) => sum + entry.count, 0);
+    const slices = top.map((entry) => ({
+        ...entry,
+        percent: (entry.count / total) * 100
+    }));
+
+    if (total - shown > 0) {
+        slices.push({
+            key: 'Other',
+            count: total - shown,
+            percent: ((total - shown) / total) * 100
+        });
+    }
+
+    return { total, slices };
+};
+
+/**
+ * Blocked attempts per protocol, highest first, with percentages.
+ * @param {Object} byProto
+ * @returns {Array<{name: string, count: number, percent: number}>}
+ */
+export const protocolStats = (byProto = {}) => {
+    const entries = Object.entries(byProto)
+        .map(([name, count]) => ({ name: name.toUpperCase(), count }))
+        .sort((a, b) => b.count - a.count);
+    const total = entries.reduce((sum, entry) => sum + entry.count, 0);
+
+    return entries.map((entry) => ({
+        ...entry,
+        percent: total ? Math.round((entry.count / total) * 100) : 0
+    }));
+};
+
+const CATEGORIES = [
+    { name: 'Web', ports: [80, 443, 3000, 8000, 8080, 8443] },
+    { name: 'Remote access', ports: [22, 23, 3389, 5900] },
+    { name: 'Mail', ports: [25, 110, 143, 465, 587, 993, 995] },
+    { name: 'Database', ports: [1433, 1521, 3306, 5432, 6379, 27017] },
+    { name: 'File sharing', ports: [20, 21, 139, 445, 2049] }
+];
+
+/**
+ * Group targeted ports into service categories, highest first.
+ * @param {Object} byPort
+ * @returns {Array<{name: string, count: number, percent: number}>}
+ */
+export const serviceCategories = (byPort = {}) => {
+    const total = Object.values(byPort).reduce((sum, count) => sum + count, 0);
+    if (total === 0) return [];
+
+    const counts = new Map(CATEGORIES.map((category) => [category.name, 0]));
+    let other = 0;
+
+    for (const [port, count] of Object.entries(byPort)) {
+        const category = CATEGORIES.find((item) => item.ports.includes(Number(port)));
+        if (category) counts.set(category.name, counts.get(category.name) + count);
+        else other += count;
+    }
+
+    if (other > 0) counts.set('Other', other);
+
+    return [...counts.entries()]
+        .filter(([, count]) => count > 0)
+        .map(([name, count]) => ({ name, count, percent: Math.round((count / total) * 100) }))
+        .sort((a, b) => b.count - a.count);
+};
+
+/**
+ * Number of distinct known services among merged rules.
+ * @param {Array<Object>} groups
+ * @returns {number}
+ */
+export const distinctServices = (groups = []) =>
+    new Set(groups.map((group) => portName(group.port)).filter(Boolean)).size;
+
+/**
+ * Port counts to show in Activity: the filtered IP's own targets, or all.
+ * @param {{byPort: Object, ipPorts: Object}} logs
+ * @param {string|null} ip
+ * @returns {Object}
+ */
+export const countsForIp = (logs = {}, ip = null) =>
+    (ip && logs.ipPorts && logs.ipPorts[ip]) || logs.byPort || {};
+

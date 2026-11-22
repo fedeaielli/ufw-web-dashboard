@@ -7,7 +7,13 @@ import {
     familyLabel,
     groupCounts,
     filterRecent,
-    portName
+    portName,
+    protocolLabel,
+    donutSlices,
+    protocolStats,
+    serviceCategories,
+    distinctServices,
+    countsForIp
 } from '../../src/public/logic.js';
 
 describe('parseRuleTarget', () => {
@@ -85,5 +91,72 @@ describe('portName', () => {
         assert.equal(portName('22'), 'SSH');
         assert.equal(portName(443), 'HTTPS');
         assert.equal(portName('12345'), '');
+    });
+});
+
+describe('protocolLabel', () => {
+    it('labels protocol-less rules as both protocols', () => {
+        assert.equal(protocolLabel('any'), 'TCP + UDP');
+        assert.equal(protocolLabel(''), 'TCP + UDP');
+        assert.equal(protocolLabel('tcp'), 'TCP');
+        assert.equal(protocolLabel('udp'), 'UDP');
+    });
+});
+
+describe('donutSlices', () => {
+    it('adds an Other slice for ports outside the top N', () => {
+        const { total, slices } = donutSlices({ '22': 6, '80': 3, '443': 1 }, 2);
+
+        assert.equal(total, 10);
+        assert.deepEqual(slices.map((slice) => [slice.key, slice.count]), [
+            ['22', 6],
+            ['80', 3],
+            ['Other', 1]
+        ]);
+        assert.equal(slices[2].percent, 10);
+    });
+
+    it('returns no slices for empty data', () => {
+        assert.deepEqual(donutSlices({}), { total: 0, slices: [] });
+    });
+});
+
+describe('protocolStats', () => {
+    it('normalizes names and computes percentages', () => {
+        assert.deepEqual(protocolStats({ tcp: 8, udp: 2 }), [
+            { name: 'TCP', count: 8, percent: 80 },
+            { name: 'UDP', count: 2, percent: 20 }
+        ]);
+    });
+});
+
+describe('serviceCategories', () => {
+    it('groups known ports and leaves the rest in Other', () => {
+        const categories = serviceCategories({ '22': 2, '80': 3, '443': 1, '9999': 4 });
+        const byName = Object.fromEntries(categories.map((item) => [item.name, item]));
+
+        assert.equal(byName.Web.count, 4);
+        assert.equal(byName['Remote access'].count, 2);
+        assert.equal(byName.Other.count, 4);
+        assert.equal(byName.Other.percent, 40);
+    });
+});
+
+describe('distinctServices', () => {
+    it('counts known service names only once', () => {
+        assert.equal(distinctServices([{ port: '22' }, { port: '22' }, { port: '443' }, { port: '12345' }]), 2);
+    });
+});
+
+describe('countsForIp', () => {
+    const logs = { byPort: { '80': 3 }, ipPorts: { '1.2.3.4': { '22': 5 } } };
+
+    it('uses the selected IP targets when available', () => {
+        assert.deepEqual(countsForIp(logs, '1.2.3.4'), { '22': 5 });
+    });
+
+    it('falls back to all ports', () => {
+        assert.deepEqual(countsForIp(logs, null), { '80': 3 });
+        assert.deepEqual(countsForIp(logs, '9.9.9.9'), { '80': 3 });
     });
 });
