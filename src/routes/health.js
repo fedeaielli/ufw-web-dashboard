@@ -3,6 +3,21 @@ import { getStatus } from '../services/ufw.js';
 
 const router = Router();
 
+// Cache the in-flight promise, not just the result, so concurrent requests
+// cannot each spawn a ufw process.
+const CACHE_TTL_MS = 5000;
+let cached = null; // { at, promise }
+
+const getCachedStatus = () => {
+    const now = Date.now();
+    if (cached && now - cached.at < CACHE_TTL_MS) return cached.promise;
+
+    const promise = getStatus();
+    cached = { at: now, promise };
+    promise.catch(() => { cached = null; });
+    return promise;
+};
+
 /**
  * GET /health - Health check endpoint
  * Returns service status without authentication
@@ -12,7 +27,7 @@ router.get('/', async (req, res) => {
     
     try {
         // Check UFW status
-        const ufwStatus = await getStatus();
+        const ufwStatus = await getCachedStatus();
         const responseTime = Date.now() - startTime;
         
         const health = {

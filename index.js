@@ -35,18 +35,20 @@ if (!validateCredentials()) {
 const app = express();
 app.set('trust proxy', 'loopback');
 
-// Health check endpoint (no auth required)
-app.use('/health', healthRouter);
-
 // Security middleware (applied to all routes)
 app.use(securityHeaders);
-app.use(httpsWarning);
 
 // Static assets are public: the login page needs them before a session exists
 app.use('/static', express.static(join(__dirname, 'src/public')));
 
 // Rate limiting (static assets above are exempt)
 app.use(rateLimiter());
+
+// Health check endpoint (no auth required, but rate limited)
+app.use('/health', healthRouter);
+
+// HTTPS warning runs after /health so periodic probes do not flood the log
+app.use(httpsWarning);
 
 // Body parsers
 app.use(express.json());
