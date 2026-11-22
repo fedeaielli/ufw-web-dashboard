@@ -720,6 +720,32 @@ th {
   white-space: nowrap;
 }
 
+.th-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+th[data-sort] { cursor: pointer; }
+
+th[aria-sort="ascending"] .th-sort,
+th[aria-sort="descending"] .th-sort { color: var(--text); }
+
+.sort-arrow {
+  display: inline-block;
+  min-width: 8px;
+  font-size: 9px;
+  color: var(--faint);
+}
+
 td {
   padding: 9px 16px;
   border-bottom: 1px solid var(--border);
@@ -732,6 +758,7 @@ tbody tr { transition: background-color 120ms ease; }
 
 @media (hover: hover) and (pointer: fine) {
   tbody tr:hover { background: var(--surface-2); }
+  .th-sort:hover { color: var(--text); }
 }
 
 td.num { font-variant-numeric: tabular-nums; }

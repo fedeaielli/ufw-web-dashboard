@@ -1,5 +1,6 @@
 import {
     mergeRules,
+    sortRules,
     familyLabel,
     groupCounts,
     filterRecent,
@@ -31,7 +32,8 @@ const state = {
     lines: Number(localStorage.getItem('logLines') || localStorage.getItem('logMaxLines')) || 1000,
     tab: 'overview',
     showAllPorts: false,
-    showAllIps: false
+    showAllIps: false,
+    sort: { key: 'port', direction: 'asc' }
 };
 
 const STATUS = {
@@ -314,10 +316,24 @@ function renderCategories() {
     </li>`).join('');
 }
 
+function renderSortHeaders() {
+    for (const header of document.querySelectorAll('#panel-rules th[data-sort]')) {
+        const active = header.dataset.sort === state.sort.key;
+        header.setAttribute('aria-sort', active
+            ? (state.sort.direction === 'asc' ? 'ascending' : 'descending')
+            : 'none');
+
+        const arrow = header.querySelector('.sort-arrow');
+        if (arrow) arrow.textContent = active ? (state.sort.direction === 'asc' ? '▲' : '▼') : '';
+    }
+}
+
 function renderRules() {
-    const groups = mergeRules(state.rules);
+    const groups = sortRules(mergeRules(state.rules), state.sort.key, state.sort.direction);
     const open = groups.filter((group) => group.action.startsWith('ALLOW')).length;
     const v6 = groups.filter((group) => group.v6).length;
+
+    renderSortHeaders();
 
     $('miniPorts').textContent = format(open);
     $('miniV6').textContent = format(v6);
@@ -636,6 +652,19 @@ $('rulesBody').addEventListener('click', async (event) => {
     } finally {
         button.disabled = false;
     }
+});
+
+document.querySelector('#panel-rules thead').addEventListener('click', (event) => {
+    const header = event.target.closest('th[data-sort]');
+    if (!header) return;
+
+    const key = header.dataset.sort;
+    state.sort = {
+        key,
+        // First click sorts ascending; clicking the active column again reverses it.
+        direction: state.sort.key === key && state.sort.direction === 'asc' ? 'desc' : 'asc'
+    };
+    renderRules();
 });
 
 $('fwToggle').addEventListener('change', (event) => setFirewall(event.target.checked));

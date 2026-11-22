@@ -10,6 +10,7 @@ A self-hosted web interface to monitor and manage your UFW firewall: see blocked
 - Instrument-panel dashboard with four tabs: Overview, Rules, Activity and Settings
 - Overview: open-port, blocked-attempt, source-IP and targeted-port KPIs, targeted-port donut, TCP/UDP/ICMP breakdown, top sources and service categories
 - Add allow or deny rules (TCP, UDP or both), remove rules, enable/disable the firewall
+- Sortable rules table by port, action or protocol
 - Activity: blocked attempts grouped by targeted port and source IP, filter by source, expandable rankings and the latest 15 connections
 - Settings: choose how many log lines to analyse
 - IPv4 and IPv6 support

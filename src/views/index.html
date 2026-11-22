@@ -182,10 +182,16 @@
           <table>
             <thead>
               <tr>
-                <th scope="col">Port</th>
+                <th scope="col" data-sort="port" aria-sort="ascending">
+                  <button class="th-sort" type="button">Port<span class="sort-arrow" aria-hidden="true">▲</span></button>
+                </th>
                 <th scope="col" class="hide-sm">Service</th>
-                <th scope="col">Action</th>
-                <th scope="col" class="hide-sm">Protocol</th>
+                <th scope="col" data-sort="action" aria-sort="none">
+                  <button class="th-sort" type="button">Action<span class="sort-arrow" aria-hidden="true"></span></button>
+                </th>
+                <th scope="col" class="hide-sm" data-sort="protocol" aria-sort="none">
+                  <button class="th-sort" type="button">Protocol<span class="sort-arrow" aria-hidden="true"></span></button>
+                </th>
                 <th scope="col" class="hide-sm">Family</th>
                 <th scope="col"><span class="sr-only">Actions</span></th>
               </tr>
