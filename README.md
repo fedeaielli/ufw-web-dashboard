@@ -29,6 +29,22 @@ The app is a single page with four tabs. The active tab is stored in the URL has
 
 Deny rules, rule removal and disabling the firewall ask for confirmation because they can interrupt access to the host. Tabs can be changed with the arrow keys, Home and End.
 
+## Specifications
+
+| Area | Details |
+|------|---------|
+| Runtime | Node.js >= 18, ES modules, Express 5 |
+| Frontend | Single-page vanilla HTML/CSS/JS; no build step, no CDN, no chart library |
+| Dashboard | Four tabs linked by URL hash; responsive layout; ARIA tabs with keyboard navigation and reduced-motion support |
+| Charts | Hand-built SVG/CSS: targeted-port donut, protocol stack and ranking bars |
+| Rules | Reads `ufw status numbered`; add, delete, enable and disable; IPv4 and IPv6 entries of the same rule are merged in the table |
+| Logs | Parses `UFW BLOCK` lines from `/var/log/ufw.log`; aggregates by target port, protocol, source IP and ports per source; keeps the 15 most recent external connections; results cached for 5 seconds by default |
+| Log range | 100 lines up to `LOG_MAX_LINES` (default 10,000); the UI accepts larger values but the server clamps them |
+| Authentication | Single user from `F_USER`/`F_PASS`; in-memory sessions with an HttpOnly, SameSite=Strict cookie; 12 h idle timeout |
+| Security | CSRF token on every mutation bound to the client fingerprint, timing-safe credential comparison, per-IP login blocking, request rate limiting, strict CSP |
+| Deployment | Direct Node process with root/sudo, or Docker with host networking, `NET_ADMIN` and the UFW paths mounted |
+| Tests | `node:test` unit and security suites; optional integration tests against a running server |
+
 ## Requirements
 
 - Node.js >= 18.0.0
@@ -164,17 +180,13 @@ All `/api/*` endpoints require a session cookie. Mutations also require an `X-CS
 
 MIT
 
-## Author
-
-Johan Massin - johan@trilogik.net
-
-## Contributors
-
-Mostly written by an AI (Claude via Cursor) while the human occasionally nodded in approval and asked for fewer emojis.
-
 ## Tech Stack
 
 - Express.js
 - Vanilla JavaScript, HTML and CSS (no build step, no CDN)
 - Charts are hand-built SVG/CSS, with no chart library
 - Node.js `node:test`
+
+## Credits
+
+Based on the original work by Johan Massin (johan@trilogik.net).
