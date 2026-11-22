@@ -1,122 +1,129 @@
-import { describe, it } from 'node:test';
+import { describe, it, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { timingSafeEqual } from 'crypto';
 
-describe('Security Tests', () => {
-    describe('Timing-safe comparison', () => {
-        it('should use constant-time comparison for equal buffers', () => {
-            const a = Buffer.from('password123');
-            const b = Buffer.from('password123');
+import config from '../../src/config.js';
+import { verifyCredentials } from '../../src/middleware/auth.js';
+import { createSession } from '../../src/middleware/session.js';
+import { csrfToken, csrfProtect } from '../../src/middleware/csrf.js';
 
-            assert.equal(timingSafeEqual(a, b), true);
-        });
+const fakeReq = (cookie = '', method = 'GET', headers = {}, body = {}) => ({
+    headers: { cookie, ...headers },
+    method,
+    body,
+    path: '/api/rules'
+});
 
-        it('should throw for different length buffers', () => {
-            const a = Buffer.from('password123');
-            const c = Buffer.from('wrong');
+const fakeRes = () => ({
+    headers: {},
+    locals: {},
+    setHeader(name, value) { this.headers[name] = value; },
+    status(code) { this.statusCode = code; return this; },
+    json(body) { this.body = body; return this; }
+});
 
-            assert.throws(() => timingSafeEqual(a, c));
-        });
+const sidFrom = (res) => /sid=([a-f0-9]{64})/.exec(res.headers['Set-Cookie'])?.[1] || null;
+
+const newSession = () => {
+    const res = fakeRes();
+    createSession(fakeReq(), res);
+    return `sid=${sidFrom(res)}`;
+};
+
+const issueToken = (cookie) => {
+    const res = fakeRes();
+    let called = false;
+    csrfToken(fakeReq(cookie), res, () => { called = true; });
+    assert.equal(called, true);
+    return res.locals.csrfToken;
+};
+
+const submit = (cookie, token, method = 'POST') => {
+    const res = fakeRes();
+    let called = false;
+    const headers = token ? { 'x-csrf-token': token } : {};
+    csrfProtect(fakeReq(cookie, method, headers), res, () => { called = true; });
+    return { called, res };
+};
+
+describe('verifyCredentials', () => {
+    const original = { user: config.auth.user, pass: config.auth.pass };
+
+    after(() => {
+        config.auth.user = original.user;
+        config.auth.pass = original.pass;
     });
 
-    describe('Password validation', () => {
-        it('should enforce minimum length', () => {
-            const minLength = 12;
-            const shortPassword = 'short';
-            const longPassword = 'thisIsALongPassword123!';
+    it('accepts only the configured pair', () => {
+        config.auth.user = 'admin';
+        config.auth.pass = 'correct-horse-battery';
 
-            assert.ok(shortPassword.length < minLength);
-            assert.ok(longPassword.length >= minLength);
-        });
+        assert.equal(verifyCredentials('admin', 'correct-horse-battery'), true);
+        assert.equal(verifyCredentials('admin', 'wrong'), false);
+        assert.equal(verifyCredentials('someone', 'correct-horse-battery'), false);
+        assert.equal(verifyCredentials('', ''), false);
+    });
+});
 
-        it('should check for complexity', () => {
-            const complexPassword = 'MyP@ssw0rd123!';
-            
-            assert.ok(/[a-z]/.test(complexPassword)); // lowercase
-            assert.ok(/[A-Z]/.test(complexPassword)); // uppercase
-            assert.ok(/[0-9]/.test(complexPassword)); // numbers
-            assert.ok(/[^a-zA-Z0-9]/.test(complexPassword)); // special chars
-        });
+describe('CSRF protection', () => {
+    const originalExpiry = config.csrf.tokenExpiry;
+
+    after(() => { config.csrf.tokenExpiry = originalExpiry; });
+
+    it('accepts a token issued for the same session', () => {
+        const cookie = newSession();
+        const token = issueToken(cookie);
+
+        const { called, res } = submit(cookie, token);
+
+        assert.equal(called, true);
+        assert.equal(res.statusCode, undefined);
     });
 
-    describe('Input sanitization', () => {
-        it('should remove shell metacharacters', () => {
-            const dangerous = '192.168.1.1; rm -rf /';
-            // Sanitize IP (allow only digits and dots, no slash for IP)
-            const sanitized = dangerous.split(';')[0].trim().replace(/[^0-9.]/g, '');
-            
-            assert.equal(sanitized, '192.168.1.1');
-            assert.ok(!sanitized.includes(';'));
-            assert.ok(!sanitized.includes('rm'));
-        });
+    it('rejects a token issued for another session', () => {
+        const token = issueToken(newSession());
 
-        it('should validate port numbers', () => {
-            const validPort = '3000';
-            const invalidPort = '3000; echo hacked';
-            
-            assert.ok(/^\d+$/.test(validPort));
-            assert.ok(!/^\d+$/.test(invalidPort));
-        });
+        const { called, res } = submit(newSession(), token);
+
+        assert.equal(called, false);
+        assert.equal(res.statusCode, 403);
+        assert.equal(res.body.error, 'CSRF token mismatch');
     });
 
-    describe('CSRF protection', () => {
-        it('should generate random tokens', () => {
-            const token1 = Math.random().toString(36);
-            const token2 = Math.random().toString(36);
-            
-            assert.notEqual(token1, token2);
-        });
+    it('rejects a missing token', () => {
+        const { called, res } = submit(newSession(), null);
 
-        it('should validate token format', () => {
-            const validToken = 'a'.repeat(64); // 64 hex chars
-            const invalidToken = 'short';
-            
-            assert.equal(validToken.length, 64);
-            assert.ok(invalidToken.length < 64);
-        });
+        assert.equal(called, false);
+        assert.equal(res.statusCode, 403);
+        assert.equal(res.body.error, 'CSRF token missing');
     });
 
-    describe('Rate limiting', () => {
-        it('should track request counts', () => {
-            const requests = new Map();
-            const clientId = '127.0.0.1';
-            
-            // Simulate requests
-            for (let i = 0; i < 5; i++) {
-                const count = requests.get(clientId) || 0;
-                requests.set(clientId, count + 1);
-            }
-            
-            assert.equal(requests.get(clientId), 5);
-        });
+    it('skips safe methods', () => {
+        const { called } = submit(newSession(), null, 'GET');
 
-        it('should enforce limits', () => {
-            const maxRequests = 3;
-            let requestCount = 0;
-            
-            for (let i = 0; i < 5; i++) {
-                requestCount++;
-                if (requestCount > maxRequests) {
-                    assert.ok(requestCount > maxRequests);
-                    break;
-                }
-            }
-        });
+        assert.equal(called, true);
     });
 
-    describe('Environment variables', () => {
-        it('should not expose sensitive data', () => {
-            const safeEnvVars = ['PORT', 'HOST', 'NODE_ENV'];
-            const sensitiveEnvVars = ['F_USER', 'F_PASS'];
-            
-            // In production, sensitive vars should not be logged
-            const isProduction = process.env.NODE_ENV === 'production';
-            
-            if (isProduction) {
-                sensitiveEnvVars.forEach(varName => {
-                    assert.ok(!process.env[varName] || varName.startsWith('F_'));
-                });
-            }
-        });
+    it('rejects an expired token', async () => {
+        const cookie = newSession();
+        const token = issueToken(cookie);
+
+        config.csrf.tokenExpiry = 1;
+        await new Promise((resolve) => setTimeout(resolve, 5));
+
+        const { called, res } = submit(cookie, token);
+
+        assert.equal(called, false);
+        assert.equal(res.statusCode, 403);
+        assert.equal(res.body.error, 'CSRF token expired');
+    });
+
+    it('rejects a reused token', () => {
+        config.csrf.tokenExpiry = originalExpiry;
+
+        const cookie = newSession();
+        const token = issueToken(cookie);
+
+        assert.equal(submit(cookie, token).called, true);
+        assert.equal(submit(cookie, token).called, false);
     });
 });

@@ -5,7 +5,7 @@
 import { randomBytes } from 'crypto';
 import config from '../config.js';
 import logger from '../utils/logger.js';
-import { getClientFingerprint } from '../utils/clientInfo.js';
+import { getSession } from './session.js';
 
 const tokens = new Map();
 
@@ -19,7 +19,7 @@ setInterval(() => {
             tokens.delete(token);
         }
     }
-}, config.csrf.cleanupInterval);
+}, config.csrf.cleanupInterval).unref();
 
 /**
  * Generate a CSRF token
@@ -34,10 +34,9 @@ const generateToken = () => {
  */
 export const csrfToken = (req, res, next) => {
     const token = generateToken();
-    const fingerprint = getClientFingerprint(req);
-    
+    // Bind to the session object: IP changes (Wi-Fi to mobile) no longer break it.
     tokens.set(token, {
-        fingerprint,
+        session: getSession(req),
         created: Date.now()
     });
     
@@ -70,11 +69,9 @@ export const csrfProtect = (req, res, next) => {
         return res.status(403).json({ error: 'Invalid CSRF token' });
     }
     
-    const fingerprint = getClientFingerprint(req);
-    
-    if (tokenData.fingerprint !== fingerprint) {
+    if (tokenData.session !== getSession(req)) {
         tokens.delete(token);
-        logger.security('CSRF token fingerprint mismatch', { path: req.path });
+        logger.security('CSRF token session mismatch', { path: req.path });
         return res.status(403).json({ error: 'CSRF token mismatch' });
     }
     

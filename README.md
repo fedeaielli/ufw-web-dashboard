@@ -41,7 +41,7 @@ Deny rules, rule removal and disabling the firewall ask for confirmation because
 | Logs | Parses `UFW BLOCK` lines from `/var/log/ufw.log`; aggregates by target port, protocol, source IP and ports per source; keeps the 15 most recent external connections; results cached for 5 seconds by default |
 | Log range | 100 lines up to `LOG_MAX_LINES` (default 10,000); the UI accepts larger values but the server clamps them |
 | Authentication | Single user from `F_USER`/`F_PASS`; in-memory sessions with an HttpOnly, SameSite=Strict cookie; 12 h idle timeout |
-| Security | CSRF token on every mutation bound to the client fingerprint, timing-safe credential comparison, per-IP login blocking, request rate limiting, strict CSP |
+| Security | CSRF token on every mutation bound to the session, timing-safe credential comparison, per-IP login blocking, request rate limiting, strict CSP |
 | Deployment | Direct Node process with root/sudo, or Docker with host networking, `NET_ADMIN` and the UFW paths mounted |
 | Tests | `node:test` unit and security suites; optional integration tests against a running server |
 
@@ -129,7 +129,7 @@ Integration tests (`npm run test:integration`) expect a running server on `127.0
 ## Security
 
 - Login page with an HttpOnly, SameSite=Strict session cookie (12 h idle timeout)
-- CSRF tokens on every mutation, bound to the client fingerprint
+- CSRF tokens on every mutation, bound to the session
 - Timing-safe credential comparison
 - Failed-login blocking per IP and a general request rate limit
 - Strict Content Security Policy; no CDN or third-party assets
