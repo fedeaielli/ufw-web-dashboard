@@ -232,7 +232,7 @@ function renderTraffic() {
         `<rect class="chart-hit" x="${(index * step - step / 2).toFixed(1)}" y="0" width="${step.toFixed(1)}" height="${height}" fill="transparent"><title>${escapeHtml(point.t)} · ${format(point.count)} blocked</title></rect>`
     ).join('');
 
-    host.innerHTML = `<svg viewBox="0 0 ${width} ${height + 18}" role="img" aria-label="Blocked attempts over time">
+    host.innerHTML = `<svg viewBox="0 0 ${width} ${height + 18}" role="img" aria-label="Blocked attempts by log order">
         <defs>
             <linearGradient id="trafficFill" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stop-color="var(--chart-1)" stop-opacity="0.35"/>
