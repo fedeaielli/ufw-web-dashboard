@@ -207,7 +207,7 @@ select { cursor: pointer; }
 .pill[data-state="inactive"] { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, transparent); }
 .pill[data-state="warn"] { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 35%, transparent); }
 
-.switch { display: inline-flex; cursor: pointer; }
+.switch { position: relative; display: inline-flex; cursor: pointer; }
 .switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 
 .switch-track {
@@ -333,6 +333,13 @@ main {
 }
 
 .card-head .spacer { margin-left: auto; }
+
+.card-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
 
 .card-body { padding: 16px; }
 

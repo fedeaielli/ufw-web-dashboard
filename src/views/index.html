@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
   <title>Firewall Manager</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 3 5 6v6c0 4.5 3 7.6 7 9 4-1.4 7-4.5 7-9V6l-7-3Z' fill='none' stroke='%2334d399' stroke-width='1.6' stroke-linejoin='round'/></svg>">
   <link rel="stylesheet" href="/static/app.css">
   <script type="module" src="/static/app.js"></script>
 </head>
@@ -82,13 +83,14 @@
     <section class="card" aria-labelledby="activityTitle">
       <div class="card-head">
         <h2 id="activityTitle">Blocked activity</h2>
-        <div class="spacer"></div>
-        <select id="linesSelect" aria-label="Log lines to analyse">
-          <option value="1000">1,000 lines</option>
-          <option value="5000">5,000 lines</option>
-          <option value="10000">10,000 lines</option>
-        </select>
-        <button class="btn small" id="refreshBtn" type="button">Refresh</button>
+        <div class="card-tools">
+          <select id="linesSelect" aria-label="Log lines to analyse">
+            <option value="1000">1,000 lines</option>
+            <option value="5000">5,000 lines</option>
+            <option value="10000">10,000 lines</option>
+          </select>
+          <button class="btn small" id="refreshBtn" type="button">Refresh</button>
+        </div>
       </div>
 
       <div class="activity-grid">
