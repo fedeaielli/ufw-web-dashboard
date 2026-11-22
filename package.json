@@ -31,7 +31,6 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "basic-auth": "^2.0.1",
     "dotenv": "^16.4.7",
     "express": "^5.2.1"
   }

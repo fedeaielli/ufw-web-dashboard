@@ -13,7 +13,8 @@ const config = {
         user: process.env.F_USER,
         pass: process.env.F_PASS,
         maxFailedAttempts: parseInt(process.env.AUTH_MAX_FAILED_ATTEMPTS || '5', 10),
-        blockDuration: parseInt(process.env.AUTH_BLOCK_DURATION || '900000', 10) // 15 minutes
+        blockDuration: parseInt(process.env.AUTH_BLOCK_DURATION || '900000', 10), // 15 minutes
+        sessionTtl: parseInt(process.env.SESSION_TTL || '43200000', 10) // 12 hours
     },
     
     // Logs

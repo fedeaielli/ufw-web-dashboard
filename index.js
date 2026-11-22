@@ -12,13 +12,14 @@ import { dirname, join } from 'path';
 
 import config from './src/config.js';
 import logger from './src/utils/logger.js';
-import { basicAuth } from './src/middleware/auth.js';
 import { rateLimiter } from './src/middleware/rateLimit.js';
+import { requireAuth } from './src/middleware/session.js';
 import { csrfToken, csrfProtect } from './src/middleware/csrf.js';
 import { securityHeaders, httpsWarning } from './src/middleware/security.js';
 import { validateCredentials, displaySecurityWarnings } from './src/utils/startup.js';
 import { errorHandler } from './src/utils/errorHandler.js';
 import { setupGracefulShutdown } from './src/utils/gracefulShutdown.js';
+import authRouter, { logout } from './src/routes/auth.js';
 import rulesRouter from './src/routes/rules.js';
 import logsRouter from './src/routes/logs.js';
 import healthRouter from './src/routes/health.js';
@@ -32,6 +33,7 @@ if (!validateCredentials()) {
 }
 
 const app = express();
+app.set('trust proxy', 'loopback');
 
 // Health check endpoint (no auth required)
 app.use('/health', healthRouter);
@@ -39,17 +41,28 @@ app.use('/health', healthRouter);
 // Security middleware (applied to all routes)
 app.use(securityHeaders);
 app.use(httpsWarning);
+
+// Static assets are public: the login page needs them before a session exists
+app.use('/static', express.static(join(__dirname, 'src/public')));
+
+// Rate limiting (static assets above are exempt)
 app.use(rateLimiter());
 
-// Body parser
+// Body parsers
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
-// Authentication
-app.use(basicAuth);
+// Login page and form (public)
+app.use(authRouter);
+
+// Everything below requires a session
+app.use(requireAuth);
 
 // CSRF protection
 app.use(csrfToken);
 app.use(csrfProtect);
+
+app.post('/logout', logout);
 
 // API routes
 app.use('/api/rules', rulesRouter);
