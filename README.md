@@ -44,7 +44,7 @@ Deny rules, rule removal and disabling the firewall ask for confirmation because
 | Authentication | Single user from `F_USER`/`F_PASS`; in-memory sessions with an HttpOnly, SameSite=Strict cookie; 12 h idle timeout |
 | Security | CSRF token on every mutation bound to the session, timing-safe credential comparison, per-IP login blocking, request rate limiting, strict CSP |
 | Deployment | Direct Node process with root/sudo, or Docker with host networking, `NET_ADMIN` and the UFW paths mounted |
-| Tests | `node:test` unit, security and integration suites; integration starts a fake `ufw` and its own server |
+| Tests | `node:test` unit, security and integration suites; integration starts a fake `ufw` and its own server. `npm run test:web` builds the SPA and runs a render smoke test on the production bundle |
 
 ## Requirements
 

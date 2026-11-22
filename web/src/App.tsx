@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react"
+import { SidebarProvider } from "@/components/ui/sidebar"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Toaster } from "@/components/ui/sonner"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -53,9 +54,11 @@ function Dashboard({ hash }: { hash: string }) {
   }
 
   return (
-    <AppShell tab={tab} onTab={changeTab} dashboard={dashboard}>
-      {page[tab]}
-    </AppShell>
+    <SidebarProvider>
+      <AppShell tab={tab} onTab={changeTab} dashboard={dashboard}>
+        {page[tab]}
+      </AppShell>
+    </SidebarProvider>
   )
 }
 
