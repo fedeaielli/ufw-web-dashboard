@@ -172,7 +172,7 @@ All `/api/*` endpoints require a session cookie. Mutations also require an `X-CS
 | `DELETE /api/rules/:id` | Remove a rule by id |
 | `POST /api/rules/enable` | Enable UFW |
 | `POST /api/rules/disable` | Disable UFW |
-| `GET /api/logs?lines=N` | Blocked-attempt statistics: `byPort`, `byProto`, `byIp`, `ipPorts`, `recent`, `total`, `maxLines`, `defaultLines` |
+| `GET /api/logs?lines=N` | Blocked-attempt statistics: `byPort`, `byProto`, `byIp`, `ipPorts`, `recent`, `series`, `total`, `maxLines`, `defaultLines` |
 
 `lines` is capped at `LOG_MAX_LINES`.
 

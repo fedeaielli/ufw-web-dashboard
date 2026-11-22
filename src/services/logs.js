@@ -47,9 +47,30 @@ class LogCache {
 const cache = new LogCache(config.logs.maxCacheSize, config.logs.cacheTtl);
 
 /**
+ * Split chronological timestamps into evenly sized buckets for the area chart.
+ * Buckets by index instead of parsing syslog dates (which carry no year).
+ * @param {string[]} times
+ * @param {number} [bins]
+ * @returns {Array<{t: string, count: number}>}
+ */
+export const timeSeries = (times = [], bins = 24) => {
+    if (!times.length) return [];
+
+    const size = Math.ceil(times.length / bins);
+    const series = [];
+
+    for (let index = 0; index < times.length; index += size) {
+        const bucket = times.slice(index, index + size);
+        series.push({ t: bucket[0], count: bucket.length });
+    }
+
+    return series;
+};
+
+/**
  * Parse UFW logs and aggregate blocked connections
  * @param {number} lines - Number of log lines to parse
- * @returns {Promise<{byPort: Object, byProto: Object, byIp: Object, ipPorts: Object, recent: Array, total: number}>}
+ * @returns {Promise<{byPort: Object, byProto: Object, byIp: Object, ipPorts: Object, recent: Array, series: Array, total: number}>}
  */
 export const getBlockedStats = async (lines = config.logs.maxLines) => {
     const safeLines = sanitizeLogLines(lines, config.logs.maxLines);
@@ -67,7 +88,7 @@ export const getBlockedStats = async (lines = config.logs.maxLines) => {
         const maxBuffer = 10 * 1024 * 1024; // 10MB
         exec(`tail -${safeLines} /var/log/ufw.log 2>/dev/null | grep "UFW BLOCK"`, { maxBuffer }, (error, stdout) => {
             if (error || !stdout) {
-                const emptyResult = { byPort: {}, byProto: {}, byIp: {}, ipPorts: {}, recent: [], total: 0 };
+                const emptyResult = { byPort: {}, byProto: {}, byIp: {}, ipPorts: {}, recent: [], series: [], total: 0 };
                 return resolve(emptyResult);
             }
 
@@ -76,6 +97,7 @@ export const getBlockedStats = async (lines = config.logs.maxLines) => {
             const byIp = {};
             const ipPorts = {}; // Track which ports each IP targeted
             const recent = [];
+            const times = [];
             
             const logLines = stdout.trim().split('\n');
             
@@ -89,10 +111,13 @@ export const getBlockedStats = async (lines = config.logs.maxLines) => {
             for (const line of logLines) {
                 const dptMatch = line.match(dptRegex);
                 const srcMatch = line.match(srcRegex);
+                const timeMatch = line.match(timeRegex);
                 
                 const port = dptMatch ? dptMatch[1] : null;
                 const ip = srcMatch ? srcMatch[1] : null;
                 const protoMatch = line.match(protoRegex);
+
+                if (timeMatch) times.push(timeMatch[1]);
 
                 if (port) {
                     byPort[port] = (byPort[port] || 0) + 1;
@@ -118,8 +143,6 @@ export const getBlockedStats = async (lines = config.logs.maxLines) => {
                 
                 // Collect recent entries (only external IPs with ports)
                 if (isExternalIp && port) {
-                    const timeMatch = line.match(timeRegex);
-                    
                     if (protoMatch) {
                         recent.push({
                             time: timeMatch ? timeMatch[1] : 'Unknown',
@@ -155,6 +178,7 @@ export const getBlockedStats = async (lines = config.logs.maxLines) => {
                 byIp: sortedIps,
                 ipPorts: ipPorts,
                 recent: recent.slice(-15).reverse(), // Last 15, most recent first
+                series: timeSeries(times), // Blocked attempts over the analyzed log range
                 oldestTime: recent.length > 0 ? recent[0].time : null, // First log entry (oldest)
                 total: logLines.length
             };
