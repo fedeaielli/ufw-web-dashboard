@@ -1,15 +1,37 @@
-import { mergeRules, familyLabel, groupCounts, filterRecent, portName } from './logic.js';
+import {
+    mergeRules,
+    familyLabel,
+    groupCounts,
+    filterRecent,
+    portName,
+    protocolLabel,
+    donutSlices,
+    protocolStats,
+    serviceCategories,
+    distinctServices,
+    countsForIp
+} from './logic.js';
 
 const $ = (id) => document.getElementById(id);
+
+const TABS = ['overview', 'rules', 'activity', 'settings'];
+const RANK_LIMIT = 8;
+const SLICE_COLORS = ['#ff6b6b', '#f97316', '#f59e0b', '#eab308', '#a8b3c2'];
+const OTHER_COLOR = '#64748b';
+const PROTO_COLORS = { TCP: '#4cc9f0', UDP: '#3ddc97' };
+const PROTO_FALLBACK = '#94a3b8';
 
 const state = {
     status: null,
     error: null,
     rules: [],
-    logs: { byPort: {}, byIp: {}, recent: [], total: 0 },
+    logs: { byPort: {}, byProto: {}, byIp: {}, ipPorts: {}, recent: [], total: 0 },
     myIp: null,
     filterIp: null,
-    lines: Number(localStorage.getItem('logLines')) || 1000
+    lines: Number(localStorage.getItem('logLines') || localStorage.getItem('logMaxLines')) || 1000,
+    tab: 'overview',
+    showAllPorts: false,
+    showAllIps: false
 };
 
 const STATUS = {
@@ -20,9 +42,49 @@ const STATUS = {
     error: ['warn', 'Error']
 };
 
+const format = (value) => Number(value).toLocaleString('en-US');
+
 const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (char) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 }[char]));
+
+const sliceColor = (slice, index) =>
+    (slice.key === 'Other' ? OTHER_COLOR : SLICE_COLORS[index % SLICE_COLORS.length]);
+
+const protoColor = (name) => PROTO_COLORS[name] || PROTO_FALLBACK;
+
+/* Tabs */
+
+const tabButtons = [...document.querySelectorAll('[role="tab"]')];
+const panels = [...document.querySelectorAll('[role="tabpanel"]')];
+const indicator = document.querySelector('.tab-indicator');
+
+function moveIndicator() {
+    const active = tabButtons.find((button) => button.dataset.tab === state.tab);
+    if (!active || !indicator) return;
+
+    const tabs = active.closest('.tabs').getBoundingClientRect();
+    const rect = active.getBoundingClientRect();
+    indicator.style.width = `${rect.width}px`;
+    indicator.style.transform = `translateX(${rect.left - tabs.left - active.closest('.tabs').clientLeft}px)`;
+}
+
+function setTab(name, { focus = false } = {}) {
+    if (!TABS.includes(name)) name = 'overview';
+    state.tab = name;
+
+    for (const button of tabButtons) {
+        const active = button.dataset.tab === name;
+        button.setAttribute('aria-selected', String(active));
+        button.tabIndex = active ? 0 : -1;
+        if (active && focus) button.focus();
+    }
+
+    for (const panel of panels) panel.hidden = panel.id !== `panel-${name}`;
+
+    history.replaceState(null, '', `#${name}`);
+    moveIndicator();
+}
 
 /* API */
 
@@ -58,9 +120,10 @@ async function mutate(path, method = 'POST', body) {
 function render() {
     renderStatus();
     renderBanner();
-    renderStats();
+    renderOverview();
     renderRules();
     renderActivity();
+    renderSettings();
 }
 
 function renderStatus() {
@@ -119,19 +182,148 @@ function renderBanner() {
         <div class="banner-actions">${variant.action}</div>`;
 }
 
-function renderStats() {
+function renderOverview() {
     const groups = mergeRules(state.rules);
-    const openPorts = groups.filter((group) => group.action === 'ALLOW IN').length;
+    const openPorts = groups.filter((group) => group.action.startsWith('ALLOW')).length;
     const sourceIps = Object.keys(state.logs.byIp).length;
+    const targetedPorts = Object.keys(state.logs.byPort).length;
 
-    $('statPorts').textContent = openPorts;
-    $('statBlocked').textContent = state.logs.total.toLocaleString('en-US');
-    $('statIps').textContent = sourceIps;
-    $('statBlockedNote').textContent = `last ${state.lines.toLocaleString('en-US')} log lines`;
+    $('statPorts').textContent = format(openPorts);
+    $('statBlocked').textContent = format(state.logs.total);
+    $('statIps').textContent = format(sourceIps);
+    $('statTargets').textContent = format(targetedPorts);
+
+    $('statBlockedNote').textContent = `last ${format(state.lines)} log lines`;
+
+    renderDonut();
+    renderProtocols();
+    renderSources();
+    renderCategories();
+}
+
+function renderDonut() {
+    const donut = $('donut');
+    const legend = $('donutLegend');
+    const { total, slices } = donutSlices(state.logs.byPort, 5);
+
+    $('donutMeta').textContent = `${Object.keys(state.logs.byPort).length} ports`;
+
+    if (total === 0) {
+        donut.innerHTML = '<p class="empty">No blocked attempts in range.</p>';
+        legend.innerHTML = '';
+        return;
+    }
+
+    const circumference = 2 * Math.PI * 50;
+    let offset = 0;
+
+    const circles = slices.map((slice, index) => {
+        const length = Math.max((slice.percent / 100) * circumference - 2.5, 0.5);
+        const circle = `<circle cx="60" cy="60" r="50" fill="none" stroke="${sliceColor(slice, index)}" stroke-width="12"
+            stroke-dasharray="${length.toFixed(2)} ${(circumference - length).toFixed(2)}"
+            stroke-dashoffset="${(-offset).toFixed(2)}"><title>${escapeHtml(slice.key)}: ${format(slice.count)} (${Math.round(slice.percent)}%)</title></circle>`;
+        offset += (slice.percent / 100) * circumference;
+        return circle;
+    }).join('');
+
+    const label = `Blocked attempts by targeted port: ${slices
+        .map((slice) => `${slice.key} ${Math.round(slice.percent)}%`)
+        .join(', ')}`;
+
+    donut.innerHTML = `<svg viewBox="0 0 120 120" role="img" aria-label="${escapeHtml(label)}">
+        <circle cx="60" cy="60" r="50" fill="none" stroke="var(--surface-3)" stroke-width="12"/>
+        <g transform="rotate(-90 60 60)">${circles}</g>
+        <text class="donut-total" x="60" y="58" text-anchor="middle" dominant-baseline="middle">${format(total)}</text>
+        <text class="donut-caption" x="60" y="73" text-anchor="middle">blocked</text>
+    </svg>`;
+
+    legend.innerHTML = slices.map((slice, index) => {
+        const other = slice.key === 'Other';
+        const name = other ? 'remaining ports' : (portName(slice.key) || 'unknown service');
+        return `<li>
+            <span class="legend-dot" style="background:${sliceColor(slice, index)}"></span>
+            <span class="legend-label"><strong class="mono">${escapeHtml(slice.key)}</strong><span>${escapeHtml(name)}</span></span>
+            <span class="legend-count">${format(slice.count)}</span>
+            <span class="legend-percent">${Math.round(slice.percent)}%</span>
+        </li>`;
+    }).join('');
+}
+
+function renderProtocols() {
+    const stats = protocolStats(state.logs.byProto);
+    const stack = $('protoStack');
+    const legend = $('protoLegend');
+    const total = stats.reduce((sum, entry) => sum + entry.count, 0);
+
+    $('protoMeta').textContent = `${format(total)} attempts`;
+
+    if (stats.length === 0) {
+        stack.innerHTML = '';
+        legend.innerHTML = '<li class="empty">No protocol data in range.</li>';
+        return;
+    }
+
+    stack.innerHTML = stats.map((entry) =>
+        `<span style="width:${entry.percent}%;background:${protoColor(entry.name)}" title="${escapeHtml(entry.name)}: ${format(entry.count)} (${entry.percent}%)"></span>`
+    ).join('');
+
+    legend.innerHTML = stats.map((entry) => `<li>
+        <span class="legend-dot" style="background:${protoColor(entry.name)}"></span>
+        <span class="legend-label"><strong>${escapeHtml(entry.name)}</strong></span>
+        <span class="legend-count">${format(entry.count)}</span>
+        <span class="legend-percent">${entry.percent}%</span>
+    </li>`).join('');
+}
+
+function renderSources() {
+    const entries = groupCounts(state.logs.byIp, 5);
+    const list = $('topSources');
+
+    if (entries.length === 0) {
+        list.innerHTML = '<li class="empty">No external sources in range.</li>';
+        return;
+    }
+
+    const max = entries[0].count;
+    list.innerHTML = entries.map(({ key, count }) => `<li>
+        <button class="rank" type="button" data-ip="${escapeHtml(key)}">
+            <span class="rank-label"><strong class="mono">${escapeHtml(key)}</strong></span>
+            <span class="rank-count">${format(count)}</span>
+            <span class="rank-bar"><span style="--w:${Math.max(4, Math.round((count / max) * 100))}%"></span></span>
+        </button>
+    </li>`).join('');
+}
+
+function renderCategories() {
+    const entries = serviceCategories(state.logs.byPort);
+    const list = $('categories');
+
+    $('categoriesMeta').textContent = `${entries.length} groups`;
+
+    if (entries.length === 0) {
+        list.innerHTML = '<li class="empty">No blocked attempts in range.</li>';
+        return;
+    }
+
+    list.innerHTML = entries.map((entry) => `<li>
+        <div class="rank category">
+            <span class="rank-label"><strong>${escapeHtml(entry.name)}</strong></span>
+            <span class="rank-count">${format(entry.count)} · ${entry.percent}%</span>
+            <span class="rank-bar"><span style="--w:${Math.max(4, entry.percent)}%"></span></span>
+        </div>
+    </li>`).join('');
 }
 
 function renderRules() {
     const groups = mergeRules(state.rules);
+    const open = groups.filter((group) => group.action.startsWith('ALLOW')).length;
+    const v6 = groups.filter((group) => group.v6).length;
+
+    $('miniPorts').textContent = format(open);
+    $('miniV6').textContent = format(v6);
+    $('miniServices').textContent = format(distinctServices(groups));
+    $('rulesMeta').textContent = `${groups.length} ${groups.length === 1 ? 'rule' : 'rules'}`;
+
     const body = $('rulesBody');
 
     if (groups.length === 0) {
@@ -140,7 +332,7 @@ function renderRules() {
     }
 
     body.innerHTML = groups.map((group) => {
-        const target = group.proto === 'any' ? group.port : `${group.port}/${group.proto}`;
+        const target = `${group.port}${group.proto === 'any' ? '' : `/${group.proto}`}${group.from && group.from !== 'Anywhere' ? ` from ${group.from}` : ''}`;
         const source = group.from && group.from !== 'Anywhere'
             ? `<div class="muted">from ${escapeHtml(group.from)}</div>`
             : '';
@@ -149,7 +341,7 @@ function renderRules() {
             <td class="mono">${escapeHtml(group.port)}${source}</td>
             <td class="muted hide-sm">${escapeHtml(portName(group.port) || '—')}</td>
             <td><span class="tag ${group.action.startsWith('ALLOW') ? 'allow' : 'deny'}">${escapeHtml(group.action)}</span></td>
-            <td class="muted hide-sm">${escapeHtml(group.proto)}</td>
+            <td class="muted hide-sm">${escapeHtml(protocolLabel(group.proto))}</td>
             <td class="muted hide-sm">${familyLabel(group)}</td>
             <td class="row-actions">
                 <button class="btn small danger" type="button" data-ids="${escapeHtml(group.ids.join(','))}" data-target="${escapeHtml(target)}">Remove</button>
@@ -159,49 +351,53 @@ function renderRules() {
 }
 
 function renderActivity() {
-    renderTopPorts();
-    renderTopIps();
+    const counts = countsForIp(state.logs, state.filterIp);
+    const portEntries = groupCounts(counts, state.showAllPorts ? Infinity : RANK_LIMIT);
+    const ipEntries = groupCounts(state.logs.byIp, state.showAllIps ? Infinity : RANK_LIMIT);
+
+    $('activityRange').textContent = format(state.lines);
+
+    $('portsMeta').textContent = state.filterIp ? `from ${state.filterIp}` : 'all sources';
+    const portList = $('topPorts');
+    if (portEntries.length === 0) {
+        portList.innerHTML = '<li class="empty">No blocked attempts in range.</li>';
+    } else {
+        const max = portEntries[0].count;
+        portList.innerHTML = portEntries.map(({ key, count }) => `<li>
+            <div class="rank">
+                <span class="rank-label"><strong class="mono">${escapeHtml(key)}</strong><span>${escapeHtml(portName(key) || 'unknown service')}</span></span>
+                <span class="rank-count">${format(count)}</span>
+                <span class="rank-bar"><span style="--w:${Math.max(4, Math.round((count / max) * 100))}%"></span></span>
+            </div>
+        </li>`).join('');
+    }
+    renderMore('portsMore', Object.keys(counts).length, state.showAllPorts, 'port');
+
+    $('ipsMeta').textContent = `${Object.keys(state.logs.byIp).length} sources`;
+    const ipList = $('topIps');
+    if (ipEntries.length === 0) {
+        ipList.innerHTML = '<li class="empty">No external sources in range.</li>';
+    } else {
+        const max = ipEntries[0].count;
+        ipList.innerHTML = ipEntries.map(({ key, count }) => `<li>
+            <button class="rank" type="button" data-ip="${escapeHtml(key)}" aria-pressed="${state.filterIp === key}">
+                <span class="rank-label"><strong class="mono">${escapeHtml(key)}</strong></span>
+                <span class="rank-count">${format(count)}</span>
+                <span class="rank-bar"><span style="--w:${Math.max(4, Math.round((count / max) * 100))}%"></span></span>
+            </button>
+        </li>`).join('');
+    }
+    renderMore('ipsMore', Object.keys(state.logs.byIp).length, state.showAllIps, 'source');
+
     renderFilterChip();
     renderRecent();
 }
 
-function renderTopPorts() {
-    const entries = groupCounts(state.logs.byPort, 5);
-    const list = $('topPorts');
-
-    if (entries.length === 0) {
-        list.innerHTML = '<li class="empty">No blocked attempts</li>';
-        return;
-    }
-
-    const max = entries[0].count;
-    list.innerHTML = entries.map(({ key, count }) => `<li class="list-item">
-        <span class="list-label">
-            <span class="mono">${escapeHtml(key)}</span>
-            <span class="muted">${escapeHtml(portName(key))}</span>
-        </span>
-        <span class="list-count">${count.toLocaleString('en-US')}</span>
-        <span class="bar"><span style="width:${Math.max(4, Math.round((count / max) * 100))}%"></span></span>
-    </li>`).join('');
-}
-
-function renderTopIps() {
-    const entries = groupCounts(state.logs.byIp, 5);
-    const list = $('topIps');
-
-    if (entries.length === 0) {
-        list.innerHTML = '<li class="empty">No blocked attempts</li>';
-        return;
-    }
-
-    const max = entries[0].count;
-    list.innerHTML = entries.map(({ key, count }) => `<li>
-        <button class="list-item" type="button" data-ip="${escapeHtml(key)}" aria-pressed="${state.filterIp === key}">
-            <span class="list-label"><span class="mono">${escapeHtml(key)}</span></span>
-            <span class="list-count">${count.toLocaleString('en-US')}</span>
-            <span class="bar"><span style="width:${Math.max(4, Math.round((count / max) * 100))}%"></span></span>
-        </button>
-    </li>`).join('');
+function renderMore(id, total, expanded, noun) {
+    const button = $(id);
+    button.hidden = total <= RANK_LIMIT;
+    button.setAttribute('aria-expanded', String(expanded));
+    button.textContent = expanded ? `Show top ${RANK_LIMIT}` : `Show all ${total} ${noun}s`;
 }
 
 function renderFilterChip() {
@@ -218,17 +414,34 @@ function renderRecent() {
     const entries = filterRecent(state.logs.recent, state.filterIp);
     const body = $('recentBody');
 
+    $('recentMeta').textContent = state.filterIp ? `filtered · ${entries.length} of 15` : 'last 15';
+
     if (entries.length === 0) {
         body.innerHTML = `<tr><td colspan="4" class="empty">${state.filterIp ? 'No attempts from this address in the selected range.' : 'No blocked attempts in the selected range.'}</td></tr>`;
         return;
     }
 
     body.innerHTML = entries.map((entry) => `<tr>
-        <td class="mono muted">${escapeHtml(entry.time)}</td>
-        <td class="mono">${escapeHtml(entry.src)}${entry.src === state.myIp ? ' <span class="tag">you</span>' : ''}</td>
+        <td class="mono muted hide-sm">${escapeHtml(entry.time)}</td>
+        <td class="mono">${escapeHtml(entry.src)}${entry.src === state.myIp ? ' <span class="tag you">you</span>' : ''}</td>
         <td class="mono">${escapeHtml(entry.port)}</td>
-        <td><span class="tag">${escapeHtml(entry.proto)}</span></td>
+        <td><span class="tag">${escapeHtml(entry.protocol || entry.proto)}</span></td>
     </tr>`).join('');
+}
+
+function renderSettings() {
+    const groups = mergeRules(state.rules);
+
+    if (document.activeElement !== $('linesInput')) {
+        $('linesInput').value = String(state.lines);
+    }
+    $('linesNote').textContent = `Analyzing the last ${format(state.lines)} lines · server reads up to 50,000.`;
+
+    $('sysStatus').textContent = (STATUS[state.status] || ['', 'Unknown'])[1];
+    $('sysRules').textContent = format(groups.filter((group) => group.action.startsWith('ALLOW')).length);
+    $('sysBlocked').textContent = format(state.logs.total);
+    $('sysIps').textContent = format(Object.keys(state.logs.byIp).length);
+    $('sysMyIp').textContent = state.myIp || '—';
 }
 
 /* Data */
@@ -250,8 +463,9 @@ async function load() {
 
 async function refreshLogs() {
     state.logs = await api(`/api/logs?lines=${state.lines}`);
-    renderStats();
+    renderOverview();
     renderActivity();
+    renderSettings();
 }
 
 /* Confirm dialog */
@@ -283,10 +497,21 @@ function confirmAction({ title, body, label, danger = false }) {
 
 /* Actions */
 
-async function addRule(port) {
-    await mutate('/api/rules', 'POST', { port, protocol: 'both', type: 'allow' });
-    toast('Rule added');
+async function addRule(port, protocol, type) {
+    if (type === 'deny') {
+        const confirmed = await confirmAction({
+            title: `Deny port ${port}?`,
+            body: 'Deny rules can lock you out of services you rely on, including SSH. Make sure you keep another way in.',
+            label: 'Add deny rule',
+            danger: true
+        });
+        if (!confirmed) return false;
+    }
+
+    await mutate('/api/rules', 'POST', { port, protocol, type });
+    toast(type === 'deny' ? 'Deny rule added' : 'Rule added');
     await load();
+    return true;
 }
 
 async function removeRule(ids, target) {
@@ -338,6 +563,14 @@ async function setFirewall(enabled) {
     }
 }
 
+function selectIp(ip) {
+    state.filterIp = state.filterIp === ip ? null : ip;
+    state.showAllPorts = false;
+    state.showAllIps = false;
+    renderActivity();
+    if (state.tab !== 'activity') setTab('activity');
+}
+
 /* Toast */
 
 let toastTimer;
@@ -354,17 +587,36 @@ function toast(message, kind = 'info') {
 
 /* Wiring */
 
+for (const button of tabButtons) {
+    button.addEventListener('click', () => setTab(button.dataset.tab));
+}
+
+document.querySelector('.tabs').addEventListener('keydown', (event) => {
+    const index = TABS.indexOf(state.tab);
+    let next = null;
+
+    if (event.key === 'ArrowRight') next = TABS[(index + 1) % TABS.length];
+    if (event.key === 'ArrowLeft') next = TABS[(index - 1 + TABS.length) % TABS.length];
+    if (event.key === 'Home') next = TABS[0];
+    if (event.key === 'End') next = TABS[TABS.length - 1];
+    if (!next) return;
+
+    event.preventDefault();
+    setTab(next, { focus: true });
+});
+
 $('addForm').addEventListener('submit', async (event) => {
     event.preventDefault();
     const input = $('portInput');
     const port = input.value.trim();
+    const protocol = $('protoInput').value;
+    const type = $('typeInput').value;
     if (!port) return;
 
-    const button = event.currentTarget.querySelector('button');
+    const button = $('addBtn');
     button.disabled = true;
     try {
-        await addRule(port);
-        input.value = '';
+        if (await addRule(port, protocol, type)) input.value = '';
     } catch (error) {
         toast(error.message, 'error');
     } finally {
@@ -421,7 +673,7 @@ $('refreshBtn').addEventListener('click', async (event) => {
     const button = event.currentTarget;
     button.disabled = true;
     try {
-        await load();
+        await refreshLogs();
     } catch (error) {
         toast(error.message, 'error');
     } finally {
@@ -429,28 +681,50 @@ $('refreshBtn').addEventListener('click', async (event) => {
     }
 });
 
-$('linesSelect').addEventListener('change', async (event) => {
-    state.lines = Number(event.target.value);
-    localStorage.setItem('logLines', String(state.lines));
-    try {
-        await refreshLogs();
-    } catch (error) {
-        toast(error.message, 'error');
-    }
-});
-
-$('topIps').addEventListener('click', (event) => {
-    const button = event.target.closest('[data-ip]');
-    if (!button) return;
-
-    state.filterIp = state.filterIp === button.dataset.ip ? null : button.dataset.ip;
+$('portsMore').addEventListener('click', () => {
+    state.showAllPorts = !state.showAllPorts;
     renderActivity();
 });
+
+$('ipsMore').addEventListener('click', () => {
+    state.showAllIps = !state.showAllIps;
+    renderActivity();
+});
+
+for (const list of [$('topIps'), $('topSources')]) {
+    list.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-ip]');
+        if (button) selectIp(button.dataset.ip);
+    });
+}
+
+$('viewActivityBtn').addEventListener('click', () => setTab('activity'));
 
 $('filterChip').addEventListener('click', (event) => {
     if (!event.target.closest('[data-clear-filter]')) return;
     state.filterIp = null;
     renderActivity();
+});
+
+$('linesForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const input = $('linesInput');
+    const value = Math.min(50000, Math.max(100, Math.round(Number(input.value) || 1000)));
+
+    state.lines = value;
+    localStorage.setItem('logLines', String(value));
+    input.value = String(value);
+
+    const button = $('applyLines');
+    button.disabled = true;
+    try {
+        await refreshLogs();
+        toast(`Analyzing ${format(value)} log lines`);
+    } catch (error) {
+        toast(error.message, 'error');
+    } finally {
+        button.disabled = false;
+    }
 });
 
 $('logoutBtn').addEventListener('click', async () => {
@@ -461,9 +735,12 @@ $('logoutBtn').addEventListener('click', async () => {
     }
 });
 
+window.addEventListener('resize', moveIndicator);
+
 /* Init */
 
-$('linesSelect').value = String(state.lines);
+setTab(TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'overview');
+requestAnimationFrame(moveIndicator);
 
 load().catch((error) => {
     state.status = 'error';

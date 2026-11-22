@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
   <title>Firewall Manager</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 3 5 6v6c0 4.5 3 7.6 7 9 4-1.4 7-4.5 7-9V6l-7-3Z' fill='none' stroke='%2334d399' stroke-width='1.6' stroke-linejoin='round'/></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 3 5 6v6c0 4.5 3 7.6 7 9 4-1.4 7-4.5 7-9V6l-7-3Z' fill='none' stroke='%233ddc97' stroke-width='1.6' stroke-linejoin='round'/></svg>">
   <link rel="stylesheet" href="/static/app.css">
   <script type="module" src="/static/app.js"></script>
 </head>
@@ -13,118 +13,296 @@
   <header class="topbar">
     <div class="topbar-inner">
       <div class="brand">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M12 3 5 6v6c0 4.5 3 7.6 7 9 4-1.4 7-4.5 7-9V6l-7-3Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
-          <path d="m9 12 2.2 2.2L15.5 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-        <span>Firewall</span>
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 3 5 6v6c0 4.5 3 7.6 7 9 4-1.4 7-4.5 7-9V6l-7-3Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+            <path d="m9 12 2.2 2.2L15.5 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
+        <span class="brand-text">
+          <span class="brand-name">Firewall</span>
+          <span class="brand-sub">UFW console</span>
+        </span>
       </div>
 
-      <span class="pill" id="statusPill" data-state="">Loading…</span>
-
-      <div class="topbar-actions">
+      <div class="fw-control">
+        <span class="pill" id="statusPill" data-state="">Loading…</span>
         <label class="switch" title="Enable or disable the firewall">
           <input type="checkbox" id="fwToggle" role="switch" aria-label="Firewall enabled" disabled>
           <span class="switch-track"><span class="switch-thumb"></span></span>
         </label>
-        <button class="btn ghost" id="logoutBtn" type="button">Sign out</button>
       </div>
+
+      <button class="btn ghost signout" id="logoutBtn" type="button">Sign out</button>
     </div>
   </header>
 
   <main>
     <section class="banner" id="banner" hidden></section>
 
-    <section class="stats" aria-label="Summary">
-      <article class="stat">
-        <p class="stat-label">Open ports</p>
-        <p class="stat-value" id="statPorts">—</p>
-        <p class="stat-note" id="statPortsNote">inbound allow rules</p>
-      </article>
-      <article class="stat">
-        <p class="stat-label">Blocked attempts</p>
-        <p class="stat-value" id="statBlocked">—</p>
-        <p class="stat-note" id="statBlockedNote">last log lines</p>
-      </article>
-      <article class="stat">
-        <p class="stat-label">Source IPs</p>
-        <p class="stat-value" id="statIps">—</p>
-        <p class="stat-note">external addresses</p>
-      </article>
+    <nav class="tabs" role="tablist" aria-label="Sections">
+      <span class="tab-indicator" aria-hidden="true"></span>
+      <button class="tab" id="tab-overview" role="tab" aria-selected="true" aria-controls="panel-overview" data-tab="overview" tabindex="0">Overview</button>
+      <button class="tab" id="tab-rules" role="tab" aria-selected="false" aria-controls="panel-rules" data-tab="rules" tabindex="-1">Rules</button>
+      <button class="tab" id="tab-activity" role="tab" aria-selected="false" aria-controls="panel-activity" data-tab="activity" tabindex="-1">Activity</button>
+      <button class="tab" id="tab-settings" role="tab" aria-selected="false" aria-controls="panel-settings" data-tab="settings" tabindex="-1">Settings</button>
+    </nav>
+
+    <section class="panel" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
+      <div class="page-head">
+        <div>
+          <h1>Overview</h1>
+          <p>Firewall state and blocked traffic at a glance.</p>
+        </div>
+      </div>
+
+      <div class="kpis">
+        <article class="kpi" data-tone="success">
+          <p class="kpi-label">Open ports</p>
+          <p class="kpi-value" id="statPorts">—</p>
+          <p class="kpi-note" id="statPortsNote">inbound allow rules</p>
+        </article>
+        <article class="kpi" data-tone="danger">
+          <p class="kpi-label">Blocked attempts</p>
+          <p class="kpi-value" id="statBlocked">—</p>
+          <p class="kpi-note" id="statBlockedNote">last log lines</p>
+        </article>
+        <article class="kpi" data-tone="warn">
+          <p class="kpi-label">Source IPs</p>
+          <p class="kpi-value" id="statIps">—</p>
+          <p class="kpi-note">external addresses</p>
+        </article>
+        <article class="kpi" data-tone="info">
+          <p class="kpi-label">Targeted ports</p>
+          <p class="kpi-value" id="statTargets">—</p>
+          <p class="kpi-note">ports hit by scans</p>
+        </article>
+      </div>
+
+      <div class="grid-2">
+        <article class="card">
+          <div class="card-head">
+            <h2>Targeted ports</h2>
+            <span class="card-meta" id="donutMeta">—</span>
+          </div>
+          <div class="card-body donut-layout">
+            <div class="donut" id="donut"></div>
+            <ul class="legend" id="donutLegend"></ul>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <h2>Protocols</h2>
+            <span class="card-meta" id="protoMeta">—</span>
+          </div>
+          <div class="card-body">
+            <div class="stack" id="protoStack"></div>
+            <ul class="legend" id="protoLegend"></ul>
+          </div>
+        </article>
+      </div>
+
+      <div class="grid-2">
+        <article class="card">
+          <div class="card-head">
+            <h2>Top sources</h2>
+            <button class="btn ghost small" id="viewActivityBtn" type="button">View activity</button>
+          </div>
+          <div class="card-body">
+            <ul class="rank-list" id="topSources"></ul>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <h2>Service categories</h2>
+            <span class="card-meta" id="categoriesMeta">—</span>
+          </div>
+          <div class="card-body">
+            <ul class="rank-list" id="categories"></ul>
+          </div>
+        </article>
+      </div>
     </section>
 
-    <section class="card" aria-labelledby="portsTitle">
-      <div class="card-head">
-        <h2 id="portsTitle">Open ports</h2>
-        <form class="add-form spacer" id="addForm">
-          <input id="portInput" type="number" min="1" max="65535" placeholder="Port" aria-label="Port to allow" required>
-          <button class="btn" type="submit">Allow port</button>
+    <section class="panel" id="panel-rules" role="tabpanel" aria-labelledby="tab-rules" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Rules</h1>
+          <p>Inbound rules enforced by UFW on this host.</p>
+        </div>
+      </div>
+
+      <div class="minis">
+        <article class="mini">
+          <p class="mini-label">Open ports</p>
+          <p class="mini-value" id="miniPorts">—</p>
+        </article>
+        <article class="mini">
+          <p class="mini-label">IPv6 rules</p>
+          <p class="mini-value" id="miniV6">—</p>
+        </article>
+        <article class="mini">
+          <p class="mini-label">Known services</p>
+          <p class="mini-value" id="miniServices">—</p>
+        </article>
+      </div>
+
+      <article class="card">
+        <div class="card-head">
+          <h2>Inbound rules</h2>
+          <span class="card-meta" id="rulesMeta">—</span>
+        </div>
+
+        <form class="rule-form" id="addForm">
+          <div class="field">
+            <label for="portInput">Port</label>
+            <input id="portInput" name="port" type="number" min="1" max="65535" inputmode="numeric" placeholder="443" required>
+          </div>
+          <div class="field">
+            <label for="protoInput">Protocol</label>
+            <select id="protoInput" name="protocol">
+              <option value="both">TCP + UDP</option>
+              <option value="tcp">TCP</option>
+              <option value="udp">UDP</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="typeInput">Action</label>
+            <select id="typeInput" name="type">
+              <option value="allow">Allow</option>
+              <option value="deny">Deny</option>
+            </select>
+          </div>
+          <button class="btn primary" id="addBtn" type="submit">Add rule</button>
         </form>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th scope="col">Port</th>
-              <th scope="col" class="hide-sm">Service</th>
-              <th scope="col">Action</th>
-              <th scope="col" class="hide-sm">Proto</th>
-              <th scope="col" class="hide-sm">Family</th>
-              <th scope="col"><span class="sr-only">Actions</span></th>
-            </tr>
-          </thead>
-          <tbody id="rulesBody">
-            <tr><td colspan="6" class="empty">Loading rules…</td></tr>
-          </tbody>
-        </table>
-      </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Port</th>
+                <th scope="col" class="hide-sm">Service</th>
+                <th scope="col">Action</th>
+                <th scope="col" class="hide-sm">Protocol</th>
+                <th scope="col" class="hide-sm">Family</th>
+                <th scope="col"><span class="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody id="rulesBody">
+              <tr><td colspan="6" class="empty">Loading rules…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
     </section>
 
-    <section class="card" aria-labelledby="activityTitle">
-      <div class="card-head">
-        <h2 id="activityTitle">Blocked activity</h2>
-        <div class="card-tools">
-          <select id="linesSelect" aria-label="Log lines to analyse">
-            <option value="1000">1,000 lines</option>
-            <option value="5000">5,000 lines</option>
-            <option value="10000">10,000 lines</option>
-          </select>
-          <button class="btn small" id="refreshBtn" type="button">Refresh</button>
+    <section class="panel" id="panel-activity" role="tabpanel" aria-labelledby="tab-activity" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Activity</h1>
+          <p>Blocked connections from the last <span id="activityRange">—</span> log lines.</p>
+        </div>
+        <button class="btn small" id="refreshBtn" type="button">Refresh</button>
+      </div>
+
+      <div class="grid-2">
+        <article class="card">
+          <div class="card-head">
+            <h2>Top targeted ports</h2>
+            <span class="card-meta" id="portsMeta">—</span>
+          </div>
+          <div class="card-body">
+            <ul class="rank-list" id="topPorts"></ul>
+            <button class="btn ghost small more-btn" id="portsMore" type="button" hidden></button>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <h2>Top source IPs</h2>
+            <span class="card-meta" id="ipsMeta">—</span>
+          </div>
+          <div class="card-body">
+            <ul class="rank-list" id="topIps"></ul>
+            <button class="btn ghost small more-btn" id="ipsMore" type="button" hidden></button>
+          </div>
+        </article>
+      </div>
+
+      <article class="card">
+        <div class="card-head">
+          <h2>Recent blocked connections</h2>
+          <span class="card-meta" id="recentMeta">last 15</span>
+        </div>
+
+        <div class="filter-chip" id="filterChip" hidden></div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col" class="hide-sm">Time</th>
+                <th scope="col">Source</th>
+                <th scope="col">Port</th>
+                <th scope="col">Protocol</th>
+              </tr>
+            </thead>
+            <tbody id="recentBody">
+              <tr><td colspan="4" class="empty">Loading activity…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+
+    <section class="panel" id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Settings</h1>
+          <p>Log analysis range and current system values.</p>
         </div>
       </div>
 
-      <div class="activity-grid">
-        <div>
-          <h3>Top targeted ports</h3>
-          <ul class="list" id="topPorts"></ul>
-        </div>
-        <div>
-          <h3>Top source IPs</h3>
-          <ul class="list" id="topIps"></ul>
-        </div>
-      </div>
+      <div class="grid-2">
+        <article class="card">
+          <div class="card-head">
+            <h2>Log analysis</h2>
+          </div>
+          <div class="card-body">
+            <form class="settings-form" id="linesForm">
+              <div class="field">
+                <label for="linesInput">Log lines to analyze</label>
+                <div class="inline-field">
+                  <input id="linesInput" name="lines" type="number" min="100" max="50000" step="100" inputmode="numeric">
+                  <button class="btn primary" id="applyLines" type="submit">Apply &amp; refresh</button>
+                </div>
+              </div>
+              <p class="hint" id="linesNote">—</p>
+            </form>
+          </div>
+        </article>
 
-      <div class="filter-chip" id="filterChip" hidden></div>
-
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th scope="col">Time</th>
-              <th scope="col">Source</th>
-              <th scope="col">Port</th>
-              <th scope="col">Proto</th>
-            </tr>
-          </thead>
-          <tbody id="recentBody">
-            <tr><td colspan="4" class="empty">Loading activity…</td></tr>
-          </tbody>
-        </table>
+        <article class="card">
+          <div class="card-head">
+            <h2>System</h2>
+          </div>
+          <div class="card-body">
+            <dl class="kv">
+              <div><dt>Firewall</dt><dd id="sysStatus">—</dd></div>
+              <div><dt>Open rules</dt><dd id="sysRules">—</dd></div>
+              <div><dt>Blocked attempts</dt><dd id="sysBlocked">—</dd></div>
+              <div><dt>Source IPs</dt><dd id="sysIps">—</dd></div>
+              <div><dt>Your IP</dt><dd id="sysMyIp">—</dd></div>
+            </dl>
+          </div>
+        </article>
       </div>
     </section>
   </main>
 
-  <dialog class="confirm" id="confirmDialog" aria-labelledby="confirmTitle">
+  <dialog class="confirm" id="confirmDialog" aria-labelledby="confirmTitle" aria-describedby="confirmBody">
     <h2 class="confirm-title" id="confirmTitle"></h2>
     <p class="confirm-body" id="confirmBody"></p>
     <div class="confirm-actions">
