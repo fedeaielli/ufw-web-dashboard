@@ -23,6 +23,10 @@ class LogCache {
             return null;
         }
 
+        // Touch the key so eviction stays least-recently-used.
+        this.cache.delete(key);
+        this.cache.set(key, entry);
+
         return entry.data;
     }
 
@@ -152,12 +156,6 @@ export const aggregateLogLines = (logLines) => {
         }
     }
 
-    // Sort ports by count - optimized without spread operator
-    const sortedPorts = {};
-    Object.entries(byPort)
-        .sort((a, b) => b[1] - a[1])
-        .forEach(([k, v]) => { sortedPorts[k] = v; });
-
     // Sort IPs by count - optimized without spread operator
     const sortedIps = {};
     Object.entries(byIp)
@@ -171,7 +169,8 @@ export const aggregateLogLines = (logLines) => {
         .forEach(([k, v]) => { sortedProtos[k] = v; });
 
     return {
-        byPort: sortedPorts,
+        // Integer-like keys are already ordered numerically; the frontend sorts by count.
+        byPort,
         byProto: sortedProtos,
         byIp: sortedIps,
         ipPorts: ipPorts,
