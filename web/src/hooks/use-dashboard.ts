@@ -22,12 +22,13 @@ export function useDashboard() {
   const [lines, setLinesState] = useState<number>(storedLines)
   const [loading, setLoading] = useState(true)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (linesOverride?: number) => {
+    const targetLines = linesOverride ?? lines
     setLoading(true)
     try {
       const [rulesData, logsData, who] = await Promise.all([
         api<RulesResponse>("/api/rules"),
-        api<LogStats>(`/api/logs?lines=${lines}`),
+        api<LogStats>(`/api/logs?lines=${targetLines}`),
         api<WhoAmI>("/api/whoami"),
       ])
       setStatus(rulesData.status)
@@ -44,8 +45,8 @@ export function useDashboard() {
     void load()
   }, [load])
 
-  const refreshLogs = useCallback(async () => {
-    setLogs(await api<LogStats>(`/api/logs?lines=${lines}`))
+  const refreshLogs = useCallback(async (linesOverride?: number) => {
+    setLogs(await api<LogStats>(`/api/logs?lines=${linesOverride ?? lines}`))
   }, [lines])
 
   const setFirewall = useCallback(async (enabled: boolean) => {

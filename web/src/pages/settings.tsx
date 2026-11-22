@@ -22,7 +22,7 @@ export function SettingsPage({ dashboard }: { dashboard: Dashboard }) {
       return
     }
     setLines(next)
-    void load().then(() => toast.success("Log range applied and data refreshed")).catch((error) => toast.error(error.message))
+    void load(next).then(() => toast.success("Log range applied and data refreshed")).catch((error) => toast.error(error.message))
   }
 
   const system = [
