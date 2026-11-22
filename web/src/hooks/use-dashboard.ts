@@ -18,6 +18,7 @@ export function useDashboard() {
   const [rules, setRules] = useState<Rule[]>([])
   const [logs, setLogs] = useState<LogStats>(EMPTY_LOGS)
   const [myIp, setMyIp] = useState<string | null>(null)
+  const [filterIp, setFilterIp] = useState<string | null>(null)
   const [lines, setLinesState] = useState<number>(storedLines)
   const [loading, setLoading] = useState(true)
 
@@ -76,8 +77,8 @@ export function useDashboard() {
   }, [])
 
   return {
-    status, error, rules, logs, myIp, lines, loading,
-    load, refreshLogs, setFirewall, addRule, removeRule, setLines,
+    status, error, rules, logs, myIp, filterIp, lines, loading,
+    load, refreshLogs, setFirewall, addRule, removeRule, setLines, setFilterIp,
   }
 }
 

@@ -13,7 +13,11 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": api,
-      "/login": api,
+      "/login": {
+        target: api,
+        // Let Vite serve the SPA on GET; only the POST needs the API.
+        bypass: (req) => (req.method === "GET" ? "/index.html" : false),
+      },
       "/logout": api,
       "/health": api,
     },

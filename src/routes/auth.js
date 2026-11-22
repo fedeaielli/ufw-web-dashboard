@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { readFileSync } from 'fs';
+import { existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -10,9 +10,18 @@ import { getClientIp } from '../utils/clientInfo.js';
 import logger from '../utils/logger.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const loginPage = readFileSync(join(__dirname, '../views/login.html'), 'utf8');
+const spaIndex = join(__dirname, '../../web/dist/index.html');
 
-const renderLogin = (error = '') => loginPage.replace('{{error}}', error);
+/** The React app handles sign-in; the server only owns the session and its checks. */
+const sendLoginPage = (res) => {
+    if (existsSync(spaIndex)) return res.sendFile(spaIndex);
+    return res.type('html').send('<!doctype html><title>Firewall Manager</title><p>Frontend not built. Run npm run build:web.</p>');
+};
+
+const loginError = (req, res, status, error) =>
+    req.accepts('json') && !req.accepts('html')
+        ? res.status(status).json({ error })
+        : res.status(status).type('text').send(error);
 
 /**
  * Reject cross-site form posts. SameSite=Strict already covers the session;
@@ -32,17 +41,15 @@ const router = Router();
 
 router.get('/login', (req, res) => {
     if (getSession(req)) return res.redirect('/');
-    res.type('html').send(renderLogin());
+    sendLoginPage(res);
 });
 
 router.post('/login', (req, res) => {
-    if (!sameOrigin(req)) return res.status(403).send(renderLogin('Invalid request origin.'));
+    if (!sameOrigin(req)) return loginError(req, res, 403, 'Invalid request origin.');
 
     if (isAuthBlocked(req)) {
         logger.security('Authentication blocked due to too many failed attempts', { ip: getClientIp(req) });
-        return res
-            .status(429)
-            .send(renderLogin('Too many failed attempts. Please try again later.'));
+        return loginError(req, res, 429, 'Too many failed attempts. Please try again later.');
     }
 
     const { username = '', password = '' } = req.body || {};
@@ -50,7 +57,7 @@ router.post('/login', (req, res) => {
     if (!verifyCredentials(username, password)) {
         logger.security('Failed authentication attempt', { ip: getClientIp(req) });
         trackFailedAuth(req);
-        return res.status(401).send(renderLogin('Invalid username or password.'));
+        return loginError(req, res, 401, 'Invalid username or password.');
     }
 
     resetFailedAuth(req);

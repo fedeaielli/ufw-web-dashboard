@@ -39,6 +39,7 @@ app.set('trust proxy', 'loopback');
 app.use(securityHeaders);
 
 // Static assets are public: the login page needs them before a session exists
+app.use(express.static(join(__dirname, 'web/dist')));
 app.use('/static', express.static(join(__dirname, 'src/public')));
 
 // Rate limiting (static assets above are exempt)
@@ -78,7 +79,7 @@ app.get('/api/csrf-token', (req, res) => {
 
 // Frontend
 app.get('/', (req, res) => {
-    res.sendFile(join(__dirname, 'src/views/index.html'));
+    res.sendFile(join(__dirname, 'web/dist/index.html'));
 });
 
 // Error handler

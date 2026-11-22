@@ -47,6 +47,7 @@ coverage/
 # Build
 dist/
 build/
+*.tsbuildinfo
 
 # Temporary files
 tmp/

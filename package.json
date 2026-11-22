@@ -6,6 +6,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
+    "build:web": "npm --prefix web run build",
     "test": "node --test --test-timeout=10000 tests/utils/*.test.js tests/middleware/*.test.js tests/security/*.test.js tests/integration/*.test.js",
     "test:watch": "node --test --watch --test-timeout=3000 tests/**/*.test.js",
     "test:unit": "node --test --test-timeout=3000 tests/utils/*.test.js tests/middleware/*.test.js",

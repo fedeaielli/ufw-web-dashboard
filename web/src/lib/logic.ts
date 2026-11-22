@@ -1,4 +1,4 @@
-import type { LogStats, MergedRule, Rule } from "./types"
+import type { LogStats, MergedRule, RecentEntry, Rule } from "./types"
 
 const SERVICES: Record<string, string> = {
   "20": "FTP data", "21": "FTP", "22": "SSH", "23": "Telnet", "25": "SMTP",
@@ -141,6 +141,9 @@ export const distinctServices = (groups: MergedRule[] = []) =>
 
 export const countsForIp = (logs: LogStats, ip: string | null) =>
   (ip && logs.ipPorts?.[ip]) || logs.byPort || {}
+
+export const filterRecent = (recent: RecentEntry[] = [], ip: string | null = null) =>
+  ip ? recent.filter((entry) => entry.src === ip) : recent
 
 export const STATUS: Record<string, { tone: string; label: string }> = {
   active: { tone: "success", label: "Active" },
