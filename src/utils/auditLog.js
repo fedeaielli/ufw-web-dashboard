@@ -27,29 +27,3 @@ export const logAudit = (action, req, details = {}, success = true) => {
     
     return logEntry;
 };
-
-/**
- * Audit middleware wrapper for route handlers
- * @param {string} action - Action name
- * @returns {Function} Middleware function
- */
-export const auditAction = (action) => {
-    return (req, res, next) => {
-        // Store original json method
-        const originalJson = res.json.bind(res);
-        
-        // Override json method to log after response
-        res.json = function(data) {
-            const success = res.statusCode >= 200 && res.statusCode < 300;
-            logAudit(action, req, { 
-                method: req.method,
-                path: req.path,
-                statusCode: res.statusCode
-            }, success);
-            
-            return originalJson(data);
-        };
-        
-        next();
-    };
-};

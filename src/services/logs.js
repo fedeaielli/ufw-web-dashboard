@@ -177,7 +177,6 @@ export const aggregateLogLines = (logLines) => {
         ipPorts: ipPorts,
         recent: recent.slice(-15).reverse(), // Last 15, most recent first
         series: timeSeries(times), // Blocked attempts over the analyzed log range
-        oldestTime: recent.length > 0 ? recent[0].time : null, // First log entry (oldest)
         total: logLines.length
     };
 };

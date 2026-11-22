@@ -1,5 +1,5 @@
 /**
- * Security headers and HTTPS detection middleware
+ * Security headers middleware
  */
 
 /**
@@ -37,33 +37,5 @@ export const securityHeaders = (req, res, next) => {
         'geolocation=(), microphone=(), camera=()'
     );
     
-    next();
-};
-
-/**
- * Check if request is over HTTPS
- * @param {Object} req
- * @returns {boolean}
- */
-export const isHttps = (req) => {
-    // Check if behind a proxy
-    if (req.headers['x-forwarded-proto']) {
-        return req.headers['x-forwarded-proto'] === 'https';
-    }
-    
-    // Direct connection
-    return req.protocol === 'https' || req.secure;
-};
-
-/**
- * Middleware to enforce HTTPS (optional, disabled by default)
- */
-export const enforceHttps = (req, res, next) => {
-    if (!isHttps(req)) {
-        return res.status(403).json({ 
-            error: 'HTTPS required',
-            message: 'This service requires a secure connection'
-        });
-    }
     next();
 };
