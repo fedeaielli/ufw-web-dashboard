@@ -15,7 +15,7 @@ import logger from './src/utils/logger.js';
 import { rateLimiter } from './src/middleware/rateLimit.js';
 import { requireAuth } from './src/middleware/session.js';
 import { csrfToken, csrfProtect } from './src/middleware/csrf.js';
-import { securityHeaders, httpsWarning } from './src/middleware/security.js';
+import { securityHeaders } from './src/middleware/security.js';
 import { validateCredentials, displaySecurityWarnings } from './src/utils/startup.js';
 import { errorHandler } from './src/utils/errorHandler.js';
 import { setupGracefulShutdown } from './src/utils/gracefulShutdown.js';
@@ -46,9 +46,6 @@ app.use(rateLimiter());
 
 // Health check endpoint (no auth required, but rate limited)
 app.use('/health', healthRouter);
-
-// HTTPS warning runs after /health so periodic probes do not flood the log
-app.use(httpsWarning);
 
 // Body parsers
 app.use(express.json());

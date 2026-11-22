@@ -2,9 +2,6 @@
  * Security headers and HTTPS detection middleware
  */
 
-import logger from '../utils/logger.js';
-import { getClientIp } from '../utils/clientInfo.js';
-
 /**
  * Add security headers to all responses
  */
@@ -56,22 +53,6 @@ export const isHttps = (req) => {
     
     // Direct connection
     return req.protocol === 'https' || req.secure;
-};
-
-/**
- * Middleware to warn about non-HTTPS connections
- */
-export const httpsWarning = (req, res, next) => {
-    if (!isHttps(req)) {
-        const clientIp = getClientIp(req);
-        logger.security(`Insecure HTTP request from ${clientIp} to ${req.method} ${req.path}`, {
-            ip: clientIp,
-            path: req.path,
-            method: req.method
-        });
-    }
-    
-    next();
 };
 
 /**
