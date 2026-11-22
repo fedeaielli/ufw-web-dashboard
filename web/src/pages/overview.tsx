@@ -7,7 +7,8 @@ import { Grid } from "@/components/charts/grid"
 import { PieChart } from "@/components/charts/pie-chart"
 import { PieSlice } from "@/components/charts/pie-slice"
 import { PieCenter } from "@/components/charts/pie-center"
-import { chartDate, format, groupCounts, donutSlices, mergeRules, portName, protocolStats, serviceCategories } from "@/lib/logic"
+import { chartDate, format, groupCounts, mergeRules, protocolStats, serviceCategories } from "@/lib/logic"
+import { portRangeCounts } from "@/lib/port-ranges.js"
 import { SPRING } from "@/lib/motion"
 import type { Dashboard } from "@/hooks/use-dashboard"
 import type { TabName } from "@/lib/types"
@@ -16,6 +17,12 @@ const COLORS = [
   "var(--chart-1)", "var(--chart-2)", "var(--chart-3)",
   "var(--chart-4)", "var(--chart-5)", "var(--faint)",
 ]
+
+const RANGE_COLORS: Record<string, string> = {
+  "well-known": "var(--chart-1)",
+  registered: "var(--chart-3)",
+  ephemeral: "var(--chart-4)",
+}
 
 function Empty({ children }: { children: ReactNode }) {
   return <p className="py-8 text-center text-sm text-muted-foreground">{children}</p>
@@ -37,7 +44,8 @@ export function OverviewPage({ dashboard, onTab }: Props) {
     count: point.count,
     label: point.t,
   }))
-  const { slices, total } = donutSlices(logs.byPort, 5)
+  const ranges = portRangeCounts(logs.byPort)
+  const portsTotal = ranges.reduce((sum, range) => sum + range.count, 0)
   const protocols = protocolStats(logs.byProto)
   const sources = groupCounts(logs.byIp, 5)
   const categories = serviceCategories(logs.byPort)
@@ -107,28 +115,25 @@ export function OverviewPage({ dashboard, onTab }: Props) {
             <span className="num text-xs text-muted-foreground">{targetedPorts} ports</span>
           </CardHeader>
           <CardContent>
-            {total === 0 ? <Empty>No blocked attempts in range.</Empty> : (
-              <div className="flex flex-col items-center gap-4 sm:flex-row">
-                <PieChart data={slices.map((slice, index) => ({
-                  label: slice.key === "Other" ? "Other" : (portName(slice.key) || slice.key),
-                  value: slice.count,
-                  color: COLORS[index % COLORS.length],
+            {portsTotal === 0 ? <Empty>No blocked attempts in range.</Empty> : (
+              <div className="flex flex-col items-center gap-4 lg:flex-row">
+                <PieChart data={ranges.map((range) => ({
+                  label: range.label,
+                  value: range.count,
+                  color: RANGE_COLORS[range.key],
                 }))} innerRadius={52} padAngle={0.02} size={168} enterTransition={SPRING} enterStaggerScale={0} className="shrink-0">
-                  {slices.map((slice, index) => (
-                    <PieSlice key={slice.key} index={index} color={COLORS[index % COLORS.length]} />
+                  {ranges.map((range, index) => (
+                    <PieSlice key={range.key} index={index} color={RANGE_COLORS[range.key]} />
                   ))}
                   <PieCenter defaultLabel="blocked" />
                 </PieChart>
-                <ul className="grid w-full gap-2">
-                  {slices.map((slice, index) => (
-                    <li key={slice.key} className="flex items-center gap-2 text-xs">
-                      <span className="size-2 rounded-full" style={{ background: COLORS[index % COLORS.length] }} />
-                      <span className="num font-medium">{slice.key}</span>
-                      <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                        {slice.key === "Other" ? "remaining ports" : (portName(slice.key) || "unknown")}
-                      </span>
-                      <span className="num text-muted-foreground">{format(slice.count)}</span>
-                      <span className="num w-8 text-right text-faint">{Math.round(slice.percent)}%</span>
+                <ul className="grid w-full gap-2 text-xs">
+                  {ranges.map((range) => (
+                    <li key={range.key} className="grid grid-cols-[8px_1fr_auto_auto] items-center gap-3">
+                      <span className="size-2 rounded-full" style={{ background: RANGE_COLORS[range.key] }} />
+                      <span className="min-w-0 truncate font-medium">{range.label}</span>
+                      <span className="num text-muted-foreground">{format(range.count)}</span>
+                      <span className="num w-8 text-right text-faint">{range.percent}%</span>
                     </li>
                   ))}
                 </ul>
