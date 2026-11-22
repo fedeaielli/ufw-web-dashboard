@@ -29,19 +29,23 @@ router.get('/', async (req, res) => {
         // Check UFW status
         const ufwStatus = await getCachedStatus();
         const responseTime = Date.now() - startTime;
+        // 'inactive' is a working state: the app can still read and enable it.
+        const healthy = ['active', 'inactive'].includes(ufwStatus.status);
         
         const health = {
-            status: 'healthy',
+            status: healthy ? 'healthy' : 'unhealthy',
             timestamp: new Date().toISOString(),
             uptime: process.uptime(),
             responseTime: `${responseTime}ms`,
             ufw: {
-                available: ufwStatus.status !== 'not_installed',
+                available: healthy,
                 status: ufwStatus.status
             }
         };
+
+        if (ufwStatus.error) health.ufw.error = ufwStatus.error;
         
-        res.json(health);
+        res.status(healthy ? 200 : 503).json(health);
     } catch (error) {
         const responseTime = Date.now() - startTime;
         
