@@ -185,7 +185,7 @@ export function AppShell({ tab, onTab, dashboard, children }: ShellProps) {
             <Button
               variant="ghost"
               size="icon"
-              className="size-8"
+              className="size-9"
               aria-label="Sign out"
               onClick={() => {
                 void mutate("/logout", "POST")
@@ -204,7 +204,7 @@ export function AppShell({ tab, onTab, dashboard, children }: ShellProps) {
         <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur-md sm:px-6">
           <SidebarTrigger className="-ml-1" />
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-lg font-medium tracking-[-0.01em]">{meta.title}</h1>
+            <h1 className="truncate text-lg font-medium">{meta.title}</h1>
           </div>
           <StatusPill status={status} />
           <span className="sr-only" id="fw-switch-label">Firewall enabled</span>
@@ -217,7 +217,7 @@ export function AppShell({ tab, onTab, dashboard, children }: ShellProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="size-8"
+            className="size-9"
             aria-label="Refresh data"
             onClick={() => {
               void load().then(() => toast.success("Data refreshed")).catch((e) => toast.error(e.message))

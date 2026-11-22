@@ -99,13 +99,14 @@ const XAxisLabel = memo(function XAxisLabel({
     <div
       className="absolute"
       style={{
-        left: x,
+        left: 0,
         bottom: 12,
         width: 0,
         display: "flex",
         justifyContent: "center",
+        transform: `translateX(${x}px)`,
         transition: animatePosition
-          ? `left ${X_AXIS_POSITION_TWEEN_MS}ms cubic-bezier(${LINE_LOADING_PULSE_EASE.join(", ")})`
+          ? `transform ${X_AXIS_POSITION_TWEEN_MS}ms cubic-bezier(${LINE_LOADING_PULSE_EASE.join(", ")})`
           : undefined,
       }}
     >

@@ -83,7 +83,7 @@ export function ChartStatFlow({
   formatOptions = defaultChartStatFlowFormat,
   prefix,
   suffix,
-  valueClassName = "text-2xl font-bold",
+  valueClassName = "text-2xl font-semibold",
   labelClassName = "text-xs",
   icon,
 }: ChartStatFlowProps) {

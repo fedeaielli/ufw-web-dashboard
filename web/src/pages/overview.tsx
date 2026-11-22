@@ -45,28 +45,28 @@ export function OverviewPage({ dashboard, onTab }: Props) {
         <Card>
           <CardContent className="grid gap-1 p-4">
             <p className="text-xs text-muted-foreground">Open ports</p>
-            <p className="num text-[28px] font-medium leading-none">{format(openPorts)}</p>
+            <p className="num text-2xl font-medium leading-none">{format(openPorts)}</p>
             <p className="text-xs text-faint">inbound allow rules</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="grid gap-1 p-4">
             <p className="text-xs text-muted-foreground">Blocked attempts</p>
-            <p className="num text-[28px] font-medium leading-none">{format(logs.total)}</p>
+            <p className="num text-2xl font-medium leading-none">{format(logs.total)}</p>
             <p className="text-xs text-faint">last {format(lines)} log lines</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="grid gap-1 p-4">
             <p className="text-xs text-muted-foreground">Source IPs</p>
-            <p className="num text-[28px] font-medium leading-none">{format(sourceIps)}</p>
+            <p className="num text-2xl font-medium leading-none">{format(sourceIps)}</p>
             <p className="text-xs text-faint">external addresses</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="grid gap-1 p-4">
             <p className="text-xs text-muted-foreground">Targeted ports</p>
-            <p className="num text-[28px] font-medium leading-none">{format(targetedPorts)}</p>
+            <p className="num text-2xl font-medium leading-none">{format(targetedPorts)}</p>
             <p className="text-xs text-faint">ports hit by scans</p>
           </CardContent>
         </Card>

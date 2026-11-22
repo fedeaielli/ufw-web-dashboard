@@ -56,7 +56,7 @@ export function LoginPage() {
               <ShieldCheck className="size-5" aria-hidden="true" />
             </span>
             <div className="grid gap-1">
-              <h1 className="text-lg font-semibold tracking-[-0.02em]">Firewall Manager</h1>
+              <h1 className="text-lg font-semibold">Firewall Manager</h1>
               <p className="text-sm text-muted-foreground">Sign in to manage UFW on this host.</p>
             </div>
           </CardHeader>

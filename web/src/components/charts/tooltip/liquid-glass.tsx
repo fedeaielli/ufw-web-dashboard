@@ -83,10 +83,9 @@ export function supportsSvgBackdropFilter(): boolean {
 
 /** Specular rim + soft drop shadow, tuned for light and dark. */
 export const DATE_TICKER_GLASS_CLASS =
-  "relative overflow-hidden rounded-full px-4 py-1 text-zinc-900 dark:text-white " +
+  "relative overflow-hidden rounded-full border border-white/20 px-4 py-1 text-zinc-900 dark:border-white/10 dark:text-white " +
   "bg-white/15 dark:bg-white/[0.06] " +
-  "shadow-[inset_0_0_0_1px_rgb(255_255_255/0.35),inset_1.5px_2px_0_-1px_rgb(255_255_255/0.9),inset_-1.5px_-2px_0_-1px_rgb(255_255_255/0.5),inset_0_-8px_12px_-8px_rgb(255_255_255/0.4),0_6px_20px_rgb(0_0_0/0.12),0_1px_3px_rgb(0_0_0/0.1)] " +
-  "dark:shadow-[inset_0_0_0_1px_rgb(255_255_255/0.14),inset_1.5px_2px_0_-1px_rgb(255_255_255/0.45),inset_-1.5px_-2px_0_-1px_rgb(255_255_255/0.2),inset_0_-8px_12px_-8px_rgb(255_255_255/0.12),0_6px_20px_rgb(0_0_0/0.4)]";
+  "shadow-[0_2px_8px_rgb(0_0_0/0.16)] dark:shadow-[0_2px_8px_rgb(0_0_0/0.4)]";
 
 const FALLBACK_BACKDROP = `blur(6px) saturate(${SATURATION})`;
 

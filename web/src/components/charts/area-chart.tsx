@@ -52,7 +52,7 @@ export interface AreaChartProps {
   className?: string;
   /** Loading vs ready — drives chart phase and loading chrome. Default: `"ready"`. */
   status?: ChartStatus;
-  /** Centered shimmer label while loading. */
+  /** Centered label while loading. */
   loadingLabel?: string;
   /** Animate y-domain over this duration (ms) on status transitions. Default: 500. */
   yDomainTweenDuration?: number;
