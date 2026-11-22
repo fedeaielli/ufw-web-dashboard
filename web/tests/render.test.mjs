@@ -65,8 +65,13 @@ test("production bundle mounts the dashboard without runtime errors", async () =
     let body
     if (path.includes("/api/rules")) body = { status: "active", rules: [] }
     else if (path.includes("/api/logs")) body = {
-      byPort: {}, byProto: {}, byIp: {}, ipPorts: {}, recent: [], series: [],
-      total: 0, maxLines: 10000, defaultLines: 1000,
+      byPort: {}, byProto: {}, byIp: {}, ipPorts: {}, recent: [],
+      series: [
+        { t: "18:45:00", count: 2 },
+        { t: "18:46:00", count: 5 },
+        { t: "18:47:00", count: 3 },
+      ],
+      total: 10, maxLines: 10000, defaultLines: 1000,
     }
     else body = { ip: "127.0.0.1" }
     return { status: 200, ok: true, json: async () => body }

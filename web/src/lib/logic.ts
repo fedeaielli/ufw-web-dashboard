@@ -17,6 +17,8 @@ export const portName = (port: string | number) => SERVICES[String(port)] || ""
 export const format = (value: number | string | undefined) =>
   Number(value ?? 0).toLocaleString("en-US")
 
+export { chartDate } from "./chart-date.js"
+
 export const parseRuleTarget = (to = "") => {
   const v6 = /\(v6\)/.test(to)
   const clean = to.replace("(v6)", "").trim()

@@ -4,11 +4,10 @@ import { Button } from "@/components/ui/button"
 import { AreaChart } from "@/components/charts/area-chart"
 import { Area } from "@/components/charts/area"
 import { Grid } from "@/components/charts/grid"
-import { XAxis } from "@/components/charts/x-axis"
 import { PieChart } from "@/components/charts/pie-chart"
 import { PieSlice } from "@/components/charts/pie-slice"
 import { PieCenter } from "@/components/charts/pie-center"
-import { format, groupCounts, donutSlices, mergeRules, portName, protocolStats, serviceCategories } from "@/lib/logic"
+import { chartDate, format, groupCounts, donutSlices, mergeRules, portName, protocolStats, serviceCategories } from "@/lib/logic"
 import { SPRING } from "@/lib/motion"
 import type { Dashboard } from "@/hooks/use-dashboard"
 import type { TabName } from "@/lib/types"
@@ -33,7 +32,11 @@ export function OverviewPage({ dashboard, onTab }: Props) {
   const sourceIps = Object.keys(logs.byIp).length
   const targetedPorts = Object.keys(logs.byPort).length
 
-  const series = (logs.series || []).map((point) => ({ date: new Date(point.t), count: point.count }))
+  const series = (logs.series || []).map((point, index) => ({
+    date: chartDate(point.t, index),
+    count: point.count,
+    label: point.t,
+  }))
   const { slices, total } = donutSlices(logs.byPort, 5)
   const protocols = protocolStats(logs.byProto)
   const sources = groupCounts(logs.byIp, 5)
@@ -79,13 +82,20 @@ export function OverviewPage({ dashboard, onTab }: Props) {
             {series.length ? `${format(logs.total)} attempts` : "no data"}
           </span>
         </CardHeader>
-        <CardContent className="h-80 px-2 pb-4 sm:px-4">
+        <CardContent className="px-2 pb-4 sm:px-4">
           {series.length ? (
-            <AreaChart data={series} xDataKey="date" animationDuration={300} enterTransition={SPRING} style={{ aspectRatio: "auto", height: "100%" }}>
-              <Grid horizontal vertical={false} />
-              <Area dataKey="count" fill="var(--chart-1)" stroke="var(--chart-1)" fillOpacity={0.25} />
-              <XAxis />
-            </AreaChart>
+            <>
+              <div className="h-72">
+                <AreaChart data={series} xDataKey="date" animationDuration={300} enterTransition={SPRING} style={{ aspectRatio: "auto", height: "100%" }}>
+                  <Grid horizontal vertical={false} />
+                  <Area dataKey="count" fill="var(--chart-1)" stroke="var(--chart-1)" fillOpacity={0.25} />
+                </AreaChart>
+              </div>
+              <div className="num mt-2 flex justify-between text-xs text-faint" aria-hidden="true">
+                <span>{series[0].label}</span>
+                <span>{series[series.length - 1].label}</span>
+              </div>
+            </>
           ) : <Empty>No blocked attempts in range.</Empty>}
         </CardContent>
       </Card>
