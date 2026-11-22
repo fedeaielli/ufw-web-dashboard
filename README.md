@@ -14,7 +14,8 @@ A self-hosted web interface to monitor and manage your UFW firewall: see blocked
 - Activity: blocked attempts grouped by targeted port and source IP, filter by source, expandable rankings and the latest blocked connections
 - Settings: choose how many log lines to analyse
 - IPv4 and IPv6 support
-- Keyboard-accessible tabs and a responsive layout with reduced-motion support
+- Keyboard-accessible sidebar navigation, visible focus, responsive layout and reduced-motion support
+- Dark and light themes with a single accent and semantic state colors
 - Login page with cookie sessions, CSRF protection and rate limiting
 - Optional Docker image that manages the host firewall
 
@@ -27,16 +28,16 @@ The app is a single page with four tabs. The active tab is stored in the URL has
 - **Activity** — blocked attempts by targeted port and source IP. Select a source to filter its ports and the latest entries; **Show all** expands the rankings.
 - **Settings** — choose how many UFW log lines to analyse. The value is capped server-side by `LOG_MAX_LINES`.
 
-Deny rules, rule removal and disabling the firewall ask for confirmation because they can interrupt access to the host. Tabs can be changed with the arrow keys, Home and End.
+Deny rules, rule removal and disabling the firewall ask for confirmation because they can interrupt access to the host. Navigation uses the sidebar; each view has its own URL hash.
 
 ## Specifications
 
 | Area | Details |
 |------|---------|
 | Runtime | Node.js >= 18, ES modules, Express 5 |
-| Frontend | Single-page vanilla HTML/CSS/JS; no build step, no CDN, no chart library |
-| Dashboard | Four tabs linked by URL hash; responsive layout; ARIA tabs with keyboard navigation and reduced-motion support |
-| Charts | Hand-built SVG/CSS: targeted-port donut, protocol stack and ranking bars |
+| Frontend | React + Vite + Tailwind CSS v4 + shadcn/ui, built to static assets served by Express |
+| Dashboard | Sidebar navigation with four views linked by URL hash; responsive layout, visible focus and reduced-motion support |
+| Charts | `@bklit` shadcn registry: area chart, sparkline, donut and horizontal bar chart |
 | Rules | Reads `ufw status numbered`; add, delete, enable and disable; IPv4 and IPv6 entries of the same rule are merged in the table |
 | Logs | Parses `UFW BLOCK` lines from `/var/log/ufw.log`; aggregates by target port, protocol, source IP and ports per source; keeps the 15 most recent external connections; results cached for 5 seconds by default |
 | Log range | 100 lines up to `LOG_MAX_LINES` (default 10,000); the UI accepts larger values but the server clamps them |
@@ -56,12 +57,16 @@ Deny rules, rule removal and disabling the firewall ask for confirmation because
 git clone https://github.com/fedeaielli/ufw-web-dashboard.git
 cd ufw-web-dashboard
 npm ci
+npm --prefix web ci
+npm run build:web
 cp .env.example .env
 nano .env                 # set F_USER and F_PASS
 sudo npm start
 ```
 
 Open `http://localhost:3300` and sign in with the credentials from `.env`.
+
+For frontend development, run `npm run dev --prefix web` and the API on port 3300. Vite proxies `/api`, `/login`, `/logout` and `/health` to the API.
 
 ## Run with Docker
 
