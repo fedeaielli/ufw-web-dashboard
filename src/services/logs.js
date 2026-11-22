@@ -88,6 +88,100 @@ export const isExternal = (ip) => {
 };
 
 /**
+ * Aggregate already-read UFW log lines. Port counts cover every blocked line;
+ * source counts cover external addresses only.
+ * @param {string[]} logLines
+ * @returns {Object} dashboard aggregates
+ */
+export const aggregateLogLines = (logLines) => {
+    const byPort = {};
+    const byProto = {};
+    const byIp = {};
+    const ipPorts = {}; // Track which ports each IP targeted
+    const recent = [];
+    const times = [];
+
+    // Pre-compile regex patterns for better performance
+    const dptRegex = /DPT=(\d+)/;
+    const srcRegex = /SRC=([0-9a-fA-F.:]+)/;
+    const timeRegex = /^(\w+\s+\d+\s+[\d:]+)/;
+    const protoRegex = /PROTO=(\w+)/;
+
+    for (const line of logLines) {
+        const dptMatch = line.match(dptRegex);
+        const srcMatch = line.match(srcRegex);
+        const timeMatch = line.match(timeRegex);
+
+        const port = dptMatch ? dptMatch[1] : null;
+        const ip = srcMatch ? srcMatch[1] : null;
+        const protoMatch = line.match(protoRegex);
+        const external = isExternal(ip);
+
+        if (timeMatch) times.push(timeMatch[1]);
+
+        // Ports are targets: count them even when the source is a LAN address.
+        if (port) {
+            byPort[port] = (byPort[port] || 0) + 1;
+            if (protoMatch) {
+                const proto = protoMatch[1].toUpperCase();
+                byProto[proto] = (byProto[proto] || 0) + 1;
+            }
+        }
+
+        if (external) {
+            byIp[ip] = (byIp[ip] || 0) + 1;
+
+            // Track ports per IP
+            if (port) {
+                if (!ipPorts[ip]) ipPorts[ip] = {};
+                ipPorts[ip][port] = (ipPorts[ip][port] || 0) + 1;
+            }
+        }
+
+        // Collect recent entries (only external IPs with ports)
+        if (external && port) {
+            if (protoMatch) {
+                recent.push({
+                    time: timeMatch ? timeMatch[1] : 'Unknown',
+                    src: ip,
+                    port: port,
+                    proto: protoMatch[1]
+                });
+            }
+        }
+    }
+
+    // Sort ports by count - optimized without spread operator
+    const sortedPorts = {};
+    Object.entries(byPort)
+        .sort((a, b) => b[1] - a[1])
+        .forEach(([k, v]) => { sortedPorts[k] = v; });
+
+    // Sort IPs by count - optimized without spread operator
+    const sortedIps = {};
+    Object.entries(byIp)
+        .sort((a, b) => b[1] - a[1])
+        .forEach(([k, v]) => { sortedIps[k] = v; });
+
+    // Sort protocols by count - optimized without spread operator
+    const sortedProtos = {};
+    Object.entries(byProto)
+        .sort((a, b) => b[1] - a[1])
+        .forEach(([k, v]) => { sortedProtos[k] = v; });
+
+    return {
+        byPort: sortedPorts,
+        byProto: sortedProtos,
+        byIp: sortedIps,
+        ipPorts: ipPorts,
+        recent: recent.slice(-15).reverse(), // Last 15, most recent first
+        series: timeSeries(times), // Blocked attempts over the analyzed log range
+        oldestTime: recent.length > 0 ? recent[0].time : null, // First log entry (oldest)
+        total: logLines.length
+    };
+};
+
+/**
  * Parse UFW logs and aggregate blocked connections
  * @param {number} lines - Number of log lines to parse
  * @returns {Promise<{byPort: Object, byProto: Object, byIp: Object, ipPorts: Object, recent: Array, series: Array, total: number}>}
@@ -112,95 +206,9 @@ export const getBlockedStats = async (lines = config.logs.maxLines) => {
                 return resolve(emptyResult);
             }
 
-            const byPort = {};
-            const byProto = {};
-            const byIp = {};
-            const ipPorts = {}; // Track which ports each IP targeted
-            const recent = [];
-            const times = [];
-            
-            const logLines = stdout.trim().split('\n');
-            
-            // Pre-compile regex patterns for better performance
-            const dptRegex = /DPT=(\d+)/;
-            const srcRegex = /SRC=([0-9a-fA-F.:]+)/;
-            const timeRegex = /^(\w+\s+\d+\s+[\d:]+)/;
-            const protoRegex = /PROTO=(\w+)/;
-            
-            for (const line of logLines) {
-                const dptMatch = line.match(dptRegex);
-                const srcMatch = line.match(srcRegex);
-                const timeMatch = line.match(timeRegex);
-                
-                const port = dptMatch ? dptMatch[1] : null;
-                const ip = srcMatch ? srcMatch[1] : null;
-                const protoMatch = line.match(protoRegex);
-                const external = isExternal(ip);
-
-                if (timeMatch) times.push(timeMatch[1]);
-
-                if (external && port) {
-                    byPort[port] = (byPort[port] || 0) + 1;
-                    if (protoMatch) {
-                        const proto = protoMatch[1].toUpperCase();
-                        byProto[proto] = (byProto[proto] || 0) + 1;
-                    }
-                }
-                
-                if (external) {
-                    byIp[ip] = (byIp[ip] || 0) + 1;
-                    
-                    // Track ports per IP
-                    if (port) {
-                        if (!ipPorts[ip]) ipPorts[ip] = {};
-                        ipPorts[ip][port] = (ipPorts[ip][port] || 0) + 1;
-                    }
-                }
-                
-                // Collect recent entries (only external IPs with ports)
-                if (external && port) {
-                    if (protoMatch) {
-                        recent.push({
-                            time: timeMatch ? timeMatch[1] : 'Unknown',
-                            src: ip,
-                            port: port,
-                            proto: protoMatch[1]
-                        });
-                    }
-                }
-            }
-
-            // Sort ports by count - optimized without spread operator
-            const sortedPorts = {};
-            Object.entries(byPort)
-                .sort((a, b) => b[1] - a[1])
-                .forEach(([k, v]) => { sortedPorts[k] = v; });
-
-            // Sort IPs by count - optimized without spread operator
-            const sortedIps = {};
-            Object.entries(byIp)
-                .sort((a, b) => b[1] - a[1])
-                .forEach(([k, v]) => { sortedIps[k] = v; });
-
-            // Sort protocols by count - optimized without spread operator
-            const sortedProtos = {};
-            Object.entries(byProto)
-                .sort((a, b) => b[1] - a[1])
-                .forEach(([k, v]) => { sortedProtos[k] = v; });
-
-            const result = {
-                byPort: sortedPorts,
-                byProto: sortedProtos,
-                byIp: sortedIps,
-                ipPorts: ipPorts,
-                recent: recent.slice(-15).reverse(), // Last 15, most recent first
-                series: timeSeries(times), // Blocked attempts over the analyzed log range
-                oldestTime: recent.length > 0 ? recent[0].time : null, // First log entry (oldest)
-                total: logLines.length
-            };
+            const result = aggregateLogLines(stdout.trim().split('\n'));
             
             // Update cache
-            const cacheKey = `logs_${safeLines}`;
             cache.set(cacheKey, result);
             logger.debug('Cached log stats', { lines: safeLines });
             
