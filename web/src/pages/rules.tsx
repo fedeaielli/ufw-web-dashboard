@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -179,9 +178,15 @@ export function RulesPage({ dashboard }: { dashboard: Dashboard }) {
                       {portName(group.port) || "—"}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={group.action.startsWith("ALLOW") ? "default" : "destructive"}>
-                        {group.action}
-                      </Badge>
+                      {(() => {
+                        const allow = group.action.startsWith("ALLOW")
+                        return (
+                          <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${allow ? "text-[var(--success)]" : "text-[var(--destructive)]"}`}>
+                            <span className={`size-1.5 rounded-full ${allow ? "bg-[var(--success)]" : "bg-[var(--destructive)]"}`} aria-hidden="true" />
+                            {group.action}
+                          </span>
+                        )
+                      })()}
                     </TableCell>
                     <TableCell className="hidden text-muted-foreground md:table-cell">
                       {protocolLabel(group.proto)}

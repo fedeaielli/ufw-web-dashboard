@@ -148,7 +148,7 @@ export function AppShell({ tab, onTab, dashboard, children }: ShellProps) {
             </span>
             <div className="grid min-w-0 leading-tight group-data-[collapsible=icon]:hidden">
               <span className="truncate text-sm font-semibold">Firewall</span>
-              <span className="truncate text-[10px] font-medium uppercase tracking-[0.12em] text-faint">UFW console</span>
+              <span className="truncate text-[11px] font-medium text-faint">UFW console</span>
             </div>
           </div>
         </SidebarHeader>
@@ -204,7 +204,7 @@ export function AppShell({ tab, onTab, dashboard, children }: ShellProps) {
         <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur-md sm:px-6">
           <SidebarTrigger className="-ml-1" />
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-base font-semibold tracking-[-0.01em]">{meta.title}</h1>
+            <h1 className="truncate text-lg font-medium tracking-[-0.01em]">{meta.title}</h1>
           </div>
           <StatusPill status={status} />
           <span className="sr-only" id="fw-switch-label">Firewall enabled</span>

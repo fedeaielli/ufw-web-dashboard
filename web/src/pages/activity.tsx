@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { BarChart } from "@/components/charts/bar-chart"
 import { Bar } from "@/components/charts/bar"
+import { BarYAxis } from "@/components/charts/bar-y-axis"
 import { Grid } from "@/components/charts/grid"
 import { countsForIp, filterRecent, format, groupCounts, portName } from "@/lib/logic"
 import { SPRING } from "@/lib/motion"
@@ -16,7 +17,7 @@ import type { TabName } from "@/lib/types"
 const LIMIT = 8
 
 export function ActivityPage({ dashboard, onTab }: { dashboard: Dashboard; onTab: (tab: TabName) => void }) {
-  const { logs, lines, myIp, filterIp, setFilterIp, refreshLogs } = dashboard
+  const { logs, myIp, filterIp, setFilterIp, refreshLogs } = dashboard
   const [showAllPorts, setShowAllPorts] = useState(false)
   const [showAllIps, setShowAllIps] = useState(false)
 
@@ -32,10 +33,7 @@ export function ActivityPage({ dashboard, onTab }: { dashboard: Dashboard; onTab
 
   return (
     <div className="grid gap-4">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">
-          Blocked connections from the last <span className="num font-medium text-foreground">{format(lines)}</span> log lines.
-        </p>
+      <div className="flex justify-end">
         <Button variant="outline" size="sm" onClick={refresh}>
           <RefreshCw className="size-4" /> Refresh
         </Button>
@@ -61,9 +59,10 @@ export function ActivityPage({ dashboard, onTab }: { dashboard: Dashboard; onTab
             {chartData.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">No blocked attempts in range.</p>
             ) : (
-              <BarChart data={chartData} xDataKey="name" orientation="horizontal" aspectRatio="2.6 / 1" animationDuration={300} enterTransition={SPRING} margin={{ left: 8, right: 24 }}>
+              <BarChart data={chartData} xDataKey="name" orientation="horizontal" aspectRatio="2 / 1" animationDuration={300} enterTransition={SPRING} margin={{ top: 8, right: 40, bottom: 8, left: 72 }}>
                 <Grid horizontal={false} vertical />
                 <Bar dataKey="count" fill="var(--chart-1)" staggerDelay={0} />
+                <BarYAxis />
               </BarChart>
             )}
             {Object.keys(counts).length > LIMIT && (
@@ -84,7 +83,7 @@ export function ActivityPage({ dashboard, onTab }: { dashboard: Dashboard; onTab
               <p className="py-8 text-center text-sm text-muted-foreground">No external sources in range.</p>
             ) : (
               <ul className="grid gap-1">
-                {ipEntries.map(({ key, count }) => (
+                {ipEntries.map(({ key, count }, index) => (
                   <li key={key}>
                     <button
                       type="button"
@@ -95,7 +94,7 @@ export function ActivityPage({ dashboard, onTab }: { dashboard: Dashboard; onTab
                       <span className="num truncate text-xs font-medium">{key}</span>
                       <span className="num text-xs text-muted-foreground">{format(count)}</span>
                       <span className="col-span-2 h-1 overflow-hidden rounded-full bg-secondary">
-                        <span className="block h-full rounded-full bg-primary"
+                        <span className={`block h-full rounded-full ${index === 0 ? "bg-primary" : "bg-foreground/20"}`}
                           style={{ width: `${Math.max(4, Math.round((count / ipEntries[0].count) * 100))}%` }} />
                       </span>
                     </button>
@@ -153,7 +152,7 @@ export function ActivityPage({ dashboard, onTab }: { dashboard: Dashboard; onTab
             </Table>
           </div>
           <Button variant="link" size="sm" className="mt-2 px-0" onClick={() => onTab("settings")}>
-            Change log analysis range
+            Log analysis settings
           </Button>
         </CardContent>
       </Card>

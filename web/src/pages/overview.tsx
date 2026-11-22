@@ -1,7 +1,6 @@
 import type { ReactNode } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { AreaSparkline } from "@/components/charts/sparkline"
 import { AreaChart } from "@/components/charts/area-chart"
 import { Area } from "@/components/charts/area"
 import { Grid } from "@/components/charts/grid"
@@ -46,36 +45,28 @@ export function OverviewPage({ dashboard, onTab }: Props) {
         <Card>
           <CardContent className="grid gap-1 p-4">
             <p className="text-xs text-muted-foreground">Open ports</p>
-            <p className="num text-2xl font-semibold tracking-[-0.02em]">{format(openPorts)}</p>
+            <p className="num text-[28px] font-medium leading-none">{format(openPorts)}</p>
             <p className="text-xs text-faint">inbound allow rules</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="grid gap-1 p-4">
             <p className="text-xs text-muted-foreground">Blocked attempts</p>
-            <p className="num text-2xl font-semibold tracking-[-0.02em]">{format(logs.total)}</p>
+            <p className="num text-[28px] font-medium leading-none">{format(logs.total)}</p>
             <p className="text-xs text-faint">last {format(lines)} log lines</p>
-            {series.length > 1 && (
-              <AreaSparkline
-                data={series} dataKey="count" height={28} interactive={false}
-                animate={false} crosshair={false} dot={false}
-                color="var(--chart-1)" className="mt-1 w-full"
-                aria-label="Blocked attempts trend"
-              />
-            )}
           </CardContent>
         </Card>
         <Card>
           <CardContent className="grid gap-1 p-4">
             <p className="text-xs text-muted-foreground">Source IPs</p>
-            <p className="num text-2xl font-semibold tracking-[-0.02em]">{format(sourceIps)}</p>
+            <p className="num text-[28px] font-medium leading-none">{format(sourceIps)}</p>
             <p className="text-xs text-faint">external addresses</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="grid gap-1 p-4">
             <p className="text-xs text-muted-foreground">Targeted ports</p>
-            <p className="num text-2xl font-semibold tracking-[-0.02em]">{format(targetedPorts)}</p>
+            <p className="num text-[28px] font-medium leading-none">{format(targetedPorts)}</p>
             <p className="text-xs text-faint">ports hit by scans</p>
           </CardContent>
         </Card>
@@ -88,7 +79,7 @@ export function OverviewPage({ dashboard, onTab }: Props) {
             {series.length ? `${format(logs.total)} attempts` : "no data"}
           </span>
         </CardHeader>
-        <CardContent className="h-[240px] px-2 pb-4 sm:px-4">
+        <CardContent className="h-80 px-2 pb-4 sm:px-4">
           {series.length ? (
             <AreaChart data={series} xDataKey="date" animationDuration={300} enterTransition={SPRING} style={{ aspectRatio: "auto", height: "100%" }}>
               <Grid horizontal vertical={false} />
@@ -180,7 +171,7 @@ export function OverviewPage({ dashboard, onTab }: Props) {
           <CardContent>
             {sources.length === 0 ? <Empty>No external sources in range.</Empty> : (
               <ul className="grid gap-1">
-                {sources.map(({ key, count }) => (
+                {sources.map(({ key, count }, index) => (
                   <li key={key}>
                     <button
                       type="button"
@@ -191,7 +182,7 @@ export function OverviewPage({ dashboard, onTab }: Props) {
                       <span className="num text-xs text-muted-foreground">{format(count)}</span>
                       <span className="col-span-2 h-1 overflow-hidden rounded-full bg-secondary">
                         <span
-                          className="block h-full rounded-full bg-primary"
+                          className={`block h-full rounded-full ${index === 0 ? "bg-primary" : "bg-foreground/20"}`}
                           style={{ width: `${Math.max(4, Math.round((count / sources[0].count) * 100))}%` }}
                         />
                       </span>
@@ -211,14 +202,14 @@ export function OverviewPage({ dashboard, onTab }: Props) {
           <CardContent>
             {categories.length === 0 ? <Empty>No blocked attempts in range.</Empty> : (
               <ul className="grid gap-3">
-                {categories.map((entry) => (
+                {categories.map((entry, index) => (
                   <li key={entry.name} className="grid gap-1">
                     <div className="flex items-center justify-between gap-3 text-xs">
                       <span className="font-medium">{entry.name}</span>
                       <span className="num text-muted-foreground">{format(entry.count)} · {entry.percent}%</span>
                     </div>
                     <span className="h-1 overflow-hidden rounded-full bg-secondary">
-                      <span className="block h-full rounded-full bg-primary" style={{ width: `${Math.max(4, entry.percent)}%` }} />
+                      <span className={`block h-full rounded-full ${index === 0 ? "bg-primary" : "bg-foreground/20"}`} style={{ width: `${Math.max(4, entry.percent)}%` }} />
                     </span>
                   </li>
                 ))}
