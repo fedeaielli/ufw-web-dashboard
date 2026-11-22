@@ -8,14 +8,26 @@ A self-hosted web interface to monitor and manage your UFW firewall: see blocked
 ## Features
 
 - Instrument-panel dashboard with four tabs: Overview, Rules, Activity and Settings
-- Overview: open-port, blocked-attempt, source-IP and targeted-port KPIs, targeted-port donut, TCP/UDP/ICMP breakdown, top sources and service categories
+- Overview: open-port, blocked-attempt, source-IP and targeted-port KPIs, targeted-port donut, protocol split, top sources and service categories
 - Add allow or deny rules (TCP, UDP or both), remove rules, enable/disable the firewall
 - Sortable rules table by port, action or protocol
-- Activity: blocked attempts grouped by targeted port and source IP, filter by source, expandable rankings and the latest 15 connections
+- Activity: blocked attempts grouped by targeted port and source IP, filter by source, expandable rankings and the latest blocked connections
 - Settings: choose how many log lines to analyse
 - IPv4 and IPv6 support
+- Keyboard-accessible tabs and a responsive layout with reduced-motion support
 - Login page with cookie sessions, CSRF protection and rate limiting
 - Optional Docker image that manages the host firewall
+
+## Using the dashboard
+
+The app is a single page with four tabs. The active tab is stored in the URL hash (`#overview`, `#rules`, `#activity`, `#settings`), so each one can be linked directly.
+
+- **Overview** — open ports, blocked attempts, distinct source IPs and targeted ports, plus a targeted-port donut, protocol split, top sources and service categories. Log-based counts use the range selected in Settings.
+- **Rules** — add an allow or deny rule for a port with TCP, UDP or both. The table merges the IPv4 and IPv6 entries of the same rule; click **Port**, **Action** or **Protocol** to sort and click again to reverse the order. Removing a rule deletes every IPv4/IPv6 entry belonging to it.
+- **Activity** — blocked attempts by targeted port and source IP. Select a source to filter its ports and the latest entries; **Show all** expands the rankings.
+- **Settings** — choose how many UFW log lines to analyse. The value is capped server-side by `LOG_MAX_LINES`.
+
+Deny rules, rule removal and disabling the firewall ask for confirmation because they can interrupt access to the host. Tabs can be changed with the arrow keys, Home and End.
 
 ## Requirements
 
@@ -25,7 +37,7 @@ A self-hosted web interface to monitor and manage your UFW firewall: see blocked
 ## Installation
 
 ```bash
-git clone https://github.com/bob6664569/ufw-web-dashboard.git
+git clone https://github.com/fedeaielli/ufw-web-dashboard.git
 cd ufw-web-dashboard
 npm ci
 cp .env.example .env
@@ -139,12 +151,14 @@ All `/api/*` endpoints require a session cookie. Mutations also require an `X-CS
 | `GET /health` | Health check (public) |
 | `GET /api/whoami` | Client IP |
 | `GET /api/csrf-token` | One-time CSRF token |
-| `GET /api/rules` | Firewall status and rules |
+| `GET /api/rules` | Firewall status (`active`, `inactive`, `not_installed`, `permission_denied`, `error`) and rules |
 | `POST /api/rules` | Add a rule (`port`, `protocol` = `tcp`/`udp`/`both`, `type` = `allow`/`deny`, `source`) |
 | `DELETE /api/rules/:id` | Remove a rule by id |
 | `POST /api/rules/enable` | Enable UFW |
 | `POST /api/rules/disable` | Disable UFW |
-| `GET /api/logs?lines=N` | Blocked-attempt statistics (`byPort`, `byProto`, `byIp`, `ipPorts`, `recent`) |
+| `GET /api/logs?lines=N` | Blocked-attempt statistics: `byPort`, `byProto`, `byIp`, `ipPorts`, `recent`, `total`, `maxLines`, `defaultLines` |
+
+`lines` is capped at `LOG_MAX_LINES`.
 
 ## License
 
@@ -162,4 +176,5 @@ Mostly written by an AI (Claude via Cursor) while the human occasionally nodded 
 
 - Express.js
 - Vanilla JavaScript, HTML and CSS (no build step, no CDN)
+- Charts are hand-built SVG/CSS, with no chart library
 - Node.js `node:test`
