@@ -7,7 +7,8 @@ import {
     createSession,
     getSession,
     destroySession,
-    parseCookies
+    parseCookies,
+    requireAuth
 } from '../../src/middleware/session.js';
 
 const fakeReq = (cookie = '') => ({ headers: { cookie }, secure: false, socket: {} });
@@ -71,6 +72,20 @@ describe('sessions', () => {
 
         await new Promise((resolve) => setTimeout(resolve, 5));
         assert.equal(getSession(fakeReq(cookie)), null);
+    });
+
+    it('marks authenticated responses as no-store', () => {
+        config.auth.sessionTtl = originalTtl;
+
+        const res = fakeRes();
+        createSession(fakeReq(), res);
+        const cookie = `sid=${sidFrom(res)}`;
+
+        let called = false;
+        requireAuth(fakeReq(cookie), res, () => { called = true; });
+
+        assert.equal(called, true);
+        assert.equal(res.headers['Cache-Control'], 'no-store');
     });
 });
 

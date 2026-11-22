@@ -93,7 +93,11 @@ export const getSession = (req) => {
  * Require a valid session: JSON 401 for the API, redirect to /login for pages
  */
 export const requireAuth = (req, res, next) => {
-    if (getSession(req)) return next();
+    if (getSession(req)) {
+        // Authenticated pages and API data must not survive logout in the browser cache.
+        res.setHeader('Cache-Control', 'no-store');
+        return next();
+    }
 
     if (req.path.startsWith('/api/')) {
         return res.status(401).json({ error: 'Authentication required' });
